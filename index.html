@@ -188,9 +188,23 @@
 
 
         </div>
+        <!-- Vocabulary Match Game - VI ↔ EN ↔ ZH -->
+        <div id="gamePanel" class="game-container">
+            <h2>🎲 Vocabulary Match</h2>
+            <p>Match the Vietnamese word to its correct English and Chinese equivalents.</p>
+
+            <div id="game-board" class="grid"></div>
+            <button onclick="startMatchGame()">🔁 New Game</button>
+        </div>
+        <div id="gameMenu" class="game-menu">
+            <button onclick="toggleGamePanel()">🎲 Vocabulary Match</button>
+        </div>
 
         <div class="input-section">
             <button onclick="toggleQuestionPanel()" title="Hiện/ẩn câu hỏi"><i class="fas fa-bars"></i></button>
+            <!-- <div class="top-buttons">
+                <button onclick="toggleGameMenu()">🎮</button>
+            </div> -->
             <!-- <button onclick="toggleGameMenu()">🎮</button> -->
             <button onclick="toggleGameMenu()" id="gameMenuButton" title="Trò chơi"> <i class="fas fa-gamepad"></i>
             </button>
@@ -204,6 +218,7 @@
         const chatBox = document.getElementById("chatBox");
         const userInput = document.getElementById("userInput");
         const questionPanel = document.getElementById("questionPanel");
+        const gamePanel = document.getElementById("gamePanel")
 
         const assistantAvatar = "https://images.stockcake.com/public/3/d/c/3dca2985-fb39-483e-8eae-342fb915b26e_large/digital-assistant-dreams-stockcake.jpg";
         const userAvatar = "https://www.w3schools.com/howto/img_avatar.png";
@@ -231,6 +246,10 @@
 
         function toggleQuestionPanel() {
             questionPanel.classList.toggle("active");
+        }
+
+        function toggleGamePanel() {
+            gamePanel.classList.toggle("active");
         }
 
         function getUserData() {
@@ -1241,14 +1260,7 @@
 
     </script>
 
-    <!-- Vocabulary Match Game - VI ↔ EN ↔ ZH -->
-    <div class="game-container">
-        <h2>🎲 Vocabulary Match</h2>
-        <p>Match the Vietnamese word to its correct English and Chinese equivalents.</p>
 
-        <div id="game-board" class="grid"></div>
-        <button onclick="startMatchGame()">🔁 New Game</button>
-    </div>
 
     <style>
         .game-container {
@@ -1256,6 +1268,21 @@
             margin: 20px auto;
             text-align: center;
             font-family: sans-serif;
+            display: none;
+        }
+
+         /* .game-container {
+            background: #f9f9f9;
+            padding: 10px;
+            border-top: 1px solid #ccc;
+            display: none;
+            flex-direction: column;
+            max-height: 200px;
+            overflow-y: auto;
+        } */
+
+        .game-container.active {
+            display: block;
         }
 
         .grid {
@@ -1322,14 +1349,13 @@
             margin-bottom: 5px;
             text-align: left;
         }
+
+       
+
     </style>
 
-    <div class="top-buttons">
-        <button onclick="toggleGameMenu()">🎮</button>
-    </div>
-    <div id="gameMenu" class="game-menu">
-        <button onclick="startMatchGame()">🎲 Vocabulary Match</button>
-    </div>
+
+
 
     <script>
         // Use existing miniDictionary from app
