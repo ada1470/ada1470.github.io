@@ -1,0 +1,1448 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Trợ lý ảo</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <style>
+        body {
+            margin: 0;
+            font-family: "Segoe UI", sans-serif;
+            background: #f1f1f1;
+        }
+
+        .chat-container {
+            max-width: 600px;
+            height: 100vh;
+            margin: auto;
+            display: flex;
+            flex-direction: column;
+            background: #fff;
+        }
+
+        .chat-box {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .message-row {
+            display: flex;
+            margin-bottom: 10px;
+        }
+
+        .message-row.assistant {
+            flex-direction: row;
+        }
+
+        .message-row.user {
+            flex-direction: row-reverse;
+        }
+
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin: 0 10px;
+        }
+
+        .bubble {
+            max-width: 70%;
+            padding: 10px 15px;
+            border-radius: 20px;
+            line-height: 1.4;
+        }
+
+        .assistant .bubble {
+            background: #e0e0e0;
+            color: #000;
+        }
+
+        .user .bubble {
+            background: #007bff;
+            color: #fff;
+        }
+
+        .input-section {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            background: #f8f8f8;
+            border-top: 1px solid #ccc;
+        }
+
+        .input-section input {
+            flex: 1;
+            padding: 10px 15px;
+            border: 1px solid #ccc;
+            border-radius: 20px;
+            font-size: 16px;
+            height: 40px;
+        }
+
+        .input-section button {
+            width: 40px;
+            height: 40px;
+            border: none;
+            border-radius: 50%;
+            background: #007bff;
+            color: #fff;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 0;
+        }
+
+        .question-panel {
+            background: #f9f9f9;
+            padding: 10px;
+            border-top: 1px solid #ccc;
+            display: none;
+            flex-direction: column;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .question-panel.active {
+            display: flex;
+        }
+
+        .question-panel button {
+            margin-bottom: 5px;
+            padding: 8px 12px;
+            font-size: 15px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            text-align: left;
+        }
+
+        /* Hiệu ứng loading */
+        #sendButton.loading::after {
+            content: "⏳";
+            animation: spin 1s linear infinite;
+            margin-left: 8px;
+        }
+
+        /* Nút rung */
+        @keyframes shake {
+            0% {
+                transform: translateX(0);
+            }
+
+            25% {
+                transform: translateX(-3px);
+            }
+
+            50% {
+                transform: translateX(3px);
+            }
+
+            75% {
+                transform: translateX(-3px);
+            }
+
+            100% {
+                transform: translateX(0);
+            }
+        }
+
+        .shake {
+            animation: shake 0.3s;
+        }
+
+        @media (max-width: 600px) {
+            .chat-container {
+                width: 100vw;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="chat-container">
+        <div class="chat-box" id="chatBox"></div>
+
+        <div class="question-panel" id="questionPanel">
+            <button onclick="handleQuestion('greet')">👋 Xin chào</button>
+            <button onclick="handleQuestion('myName')">🧑 Tôi tên là gì?</button>
+            <button onclick="handleQuestion('age')">🎂 Tôi bao nhiêu tuổi?</button>
+            <button onclick="handleQuestion('location')">📍 Tôi đang ở đâu?</button>
+            <button onclick="handleQuestion('time')">🕒 Mấy giờ rồi?</button>
+            <button onclick="handleQuestion('day')">📅 Thứ mấy?</button>
+            <button onclick="handleQuestion('date')">📆 Ngày mấy?</button>
+            <button onclick="handleQuestion('month')">🗓️ Tháng mấy?</button>
+            <button onclick="handleQuestion('year')">📈 Năm bao nhiêu?</button>
+            <button onclick="handleQuestion('century')">🌀 Thế kỷ nào?</button>
+            <button onclick="handleQuestion('yourName')">🤖 Bạn tên là gì?</button>
+            <button onclick="handleQuestion('whoAreYou')">❓ Bạn là ai?</button>
+            <button onclick="handleQuestion('birthdayCountdown')">🎂 Bao nhiêu ngày nữa đến sinh nhật của tôi?</button>
+
+
+        </div>
+
+        <div class="input-section">
+            <button onclick="toggleQuestionPanel()" title="Hiện/ẩn câu hỏi"><i class="fas fa-bars"></i></button>
+            <!-- <button onclick="toggleGameMenu()">🎮</button> -->
+            <button onclick="toggleGameMenu()" id="gameMenuButton" title="Trò chơi"> <i class="fas fa-gamepad"></i>
+            </button>
+            <input type="text" id="userInput" placeholder="Nhập thông tin..." />
+            <button id="sendButton" onclick="submitUserInput()" title="Gửi"><i class="fas fa-paper-plane"></i></button>
+        </div>
+    </div>
+
+    <script>
+
+        const chatBox = document.getElementById("chatBox");
+        const userInput = document.getElementById("userInput");
+        const questionPanel = document.getElementById("questionPanel");
+
+        const assistantAvatar = "https://images.stockcake.com/public/3/d/c/3dca2985-fb39-483e-8eae-342fb915b26e_large/digital-assistant-dreams-stockcake.jpg";
+        const userAvatar = "https://www.w3schools.com/howto/img_avatar.png";
+
+        let assistantName = localStorage.getItem("assistantName") || null;
+        let currentQuestion = null;
+        let guessedAge = null;
+        let lastAsked = null;
+
+        const buttonTextMap = {
+            greet: "👋 Xin chào",
+            yourName: "🤖 Tên bạn là gì?",
+            whoAreYou: "❓ Bạn là ai?",
+            myName: "🧑 Tôi tên là gì?",
+            age: "🎂 Tôi bao nhiêu tuổi?",
+            location: "📍 Tôi đang ở đâu?",
+            time: "🕒 Bây giờ là mấy giờ?",
+            day: "📅 Hôm nay là thứ mấy?",
+            date: "📆 Hôm nay ngày mấy?",
+            month: "🗓️ Tháng mấy rồi?",
+            year: "📈 Năm bao nhiêu?",
+            century: "🌀 Thế kỷ nào?",
+            birthdayCountdown: "🎂 Bao nhiêu ngày nữa tới sinh nhật?"
+        };
+
+        function toggleQuestionPanel() {
+            questionPanel.classList.toggle("active");
+        }
+
+        function getUserData() {
+            return JSON.parse(localStorage.getItem("userInfo")) || {};
+        }
+
+        function setUserData(data) {
+            localStorage.setItem("userInfo", JSON.stringify(data));
+        }
+
+        function addMessage(message, sender = "assistant") {
+            const row = document.createElement("div");
+            row.className = `message-row ${sender}`;
+            const avatar = document.createElement("img");
+            avatar.className = "avatar";
+            avatar.src = sender === "assistant" ? assistantAvatar : userAvatar;
+            const bubble = document.createElement("div");
+            bubble.className = `bubble ${sender}`;
+            bubble.innerHTML = message;
+            row.appendChild(avatar);
+            row.appendChild(bubble);
+            chatBox.appendChild(row);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function handleQuestion(type) {
+            const userData = getUserData();
+            const label = buttonTextMap[type] || type;
+            addMessage(label, "user");
+
+            currentQuestion = null;
+            lastAsked = type;
+
+            if (type === "greet") {
+                addMessage("👋 Chào bạn! Rất vui được gặp bạn 😊");
+            } else if (type === "yourName") {
+                if (assistantName) {
+                    addMessage(`🤖 Mình tên là <strong>${assistantName}</strong> nè!`);
+                } else {
+                    addMessage("😅 Mình chưa có tên... bạn đặt giúp mình một cái tên dễ thương được không?");
+                    currentQuestion = "assistantNaming";
+                }
+            } else if (type === "whoAreYou") {
+                addMessage("🤗 Mình là trợ lý ảo – bạn có thể hỏi mình bất cứ điều gì!");
+            } else if (type === "myName") {
+                if (userData.name) {
+                    addMessage(`🧑 Bạn tên là <strong>${userData.name}</strong>, đúng không nè?`);
+                    const confirmButtons = `
+          <button onclick="confirmUserName(true)">✅ Đúng rồi!</button>
+          <button onclick="confirmUserName(false)">❌ Không phải tôi</button>
+        `;
+                    chatBox.insertAdjacentHTML("beforeend", `
+          <div class="message-row assistant">
+            <img class="avatar" src="${assistantAvatar}">
+            <div class="bubble assistant">${confirmButtons}</div>
+          </div>
+        `);
+                    chatBox.scrollTop = chatBox.scrollHeight;
+                } else {
+                    currentQuestion = "name";
+                    addMessage("Mình chưa biết tên bạn... bạn nói cho mình biết nha? 🥰");
+                }
+            } else if (type === "location") {
+                if (userData.location) {
+                    addMessage(`📍 Mình nhớ bạn đang ở <strong>${userData.location}</strong> phải không?`);
+                } else {
+                    currentQuestion = "location";
+                    addMessage("Bạn đến từ đâu vậy? Cho mình biết để mình nói giờ giấc đúng nhé! 🌍");
+                }
+            } else if (type === "age") {
+                if (userData.age) {
+                    addMessage(`🎉 Bạn đã ${userData.age} tuổi rồi đó!`);
+                } else {
+                    guessedAge = Math.floor(Math.random() * 40) + 15;
+                    addMessage(`🤔 Mình đoán bạn khoảng <strong>${guessedAge}</strong> tuổi. Có đúng không?`);
+
+                    const ageButtons = `
+          <button onclick="handleAgeGuess(true)">✅ Đúng</button>
+          <button onclick="handleAgeGuess(false)">❌ Sai</button>
+        `;
+                    chatBox.insertAdjacentHTML("beforeend", `
+          <div class="message-row assistant">
+            <img class="avatar" src="${assistantAvatar}">
+            <div class="bubble assistant">${ageButtons}</div>
+          </div>
+        `);
+                    chatBox.scrollTop = chatBox.scrollHeight;
+                    currentQuestion = null;
+                }
+            }
+            else if (type === "birthdayCountdown") {
+                if (!userData.birthDate) {
+                    currentQuestion = "birthDate";
+                    addMessage("🎂 Bạn cho mình biết ngày sinh nhật của bạn nhé? (định dạng: DD/MM)");
+                } else {
+                    const now = new Date();
+                    const [day, month] = userData.birthDate.split("/").map(Number);
+                    let birthdayThisYear = new Date(now.getFullYear(), month - 1, day);
+
+                    if (birthdayThisYear < now) {
+                        birthdayThisYear.setFullYear(now.getFullYear() + 1);
+                    }
+
+                    const diffTime = birthdayThisYear - now;
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    addMessage(`📅 Còn khoảng <strong>${diffDays} ngày</strong> nữa là đến sinh nhật bạn đó! 🎉`);
+                }
+            }
+            else if (["time", "day", "date", "month", "year", "century"].includes(type)) {
+                if (!userData.location) {
+                    currentQuestion = "location";
+                    addMessage("⏳ Mình chưa biết bạn đang ở đâu... Bạn cho mình biết địa điểm trước nha! 🌏");
+                } else {
+                    showTimeByLocation(userData.location);
+                }
+            }
+        }
+
+        function submitUserInput() {
+            const value = userInput.value.trim();
+            if (!value) return;
+
+            const sendButton = document.getElementById("sendButton");
+            sendButton.classList.add("loading", "shake");
+
+            setTimeout(() => {
+                sendButton.classList.remove("shake");
+            }, 300); // Dừng rung sau 300ms
+
+            addMessage(value, "user");
+
+            const userData = getUserData();
+
+            // 🎂 Ưu tiên xử lý ngày sinh trước
+            if (currentQuestion === "birthDate") {
+                const match = value.match(/^(\d{1,2})\/(\d{1,2})$/);
+                if (!match) {
+                    addMessage("📆 Định dạng không đúng. Bạn nhập kiểu DD/MM nhé!");
+                    return;
+                }
+
+                const day = parseInt(match[1]);
+                const month = parseInt(match[2]);
+
+                // Kiểm tra tồn tại thực sự trong lịch
+                const testDate = new Date(2024, month - 1, day); // năm 2024 có 29/2
+                const isRealDate = testDate.getDate() === day && testDate.getMonth() === month - 1;
+
+                if (!isRealDate) {
+                    addMessage("😅 Hình như ngày/tháng bạn nhập chưa hợp lệ. Nhập lại giúp mình nha!");
+                    return;
+                }
+
+                // Lưu lại
+                userData.birthDate = `${day}/${month}`;
+                setUserData(userData);
+                addMessage(`🎉 Mình đã lưu ngày sinh nhật của bạn là ${day}/${month}!`);
+
+                if (lastAsked === "birthdayCountdown") {
+                    handleQuestion("birthdayCountdown");
+                }
+
+                currentQuestion = null;
+                userInput.value = "";
+                setTimeout(() => {
+                    sendButton.classList.remove("loading");
+                }, 600); // Kết thúc loading sau khi phản hồi xong
+                return;
+            }
+
+            // ✅ Ưu tiên câu hỏi đặc biệt khác...
+            if (currentQuestion === "name") {
+                userData.name = value;
+                setUserData(userData);
+                addMessage(`🥰 Cảm ơn bạn, <strong>${value}</strong>. Mình sẽ ghi nhớ tên bạn nhé!`);
+            } else if (currentQuestion === "location") {
+                userData.location = value;
+                setUserData(userData);
+                addMessage(`📌 Ồ! <strong>${value}</strong> nghe thật thú vị!`);
+                if (["time", "day", "date", "month", "year", "century"].includes(lastAsked)) {
+                    showTimeByLocation(value);
+                }
+            } else if (currentQuestion === "assistantNaming") {
+                assistantName = value;
+                localStorage.setItem("assistantName", assistantName);
+                addMessage(`🌟 Yay! Từ giờ mình sẽ tên là <strong>${assistantName}</strong>. Cảm ơn bạn nhiều! 💖`);
+            } else if (currentQuestion === "age") {
+                if (!value || isNaN(value)) {
+                    addMessage("😅 Mình chưa hiểu tuổi của bạn. Nhập lại giúp mình với số nha.");
+                    return;
+                }
+                userData.age = value;
+                const diff = guessedAge - parseInt(value);
+                if (diff > 10) addMessage("😳 Ôi xin lỗi, mình đoán bạn già hơn thật 😅");
+                else if (diff < -10) addMessage("😲 Trời ơi, bạn trẻ hơn mình tưởng nhiều đó! 😄");
+                else addMessage(`🎉 Tuyệt vời! Mình đã ghi nhớ bạn ${value} tuổi.`);
+                setUserData(userData);
+            } else if (currentQuestion === "age") {
+                if (!value || isNaN(value)) {
+                    addMessage("😅 Mình chưa hiểu tuổi của bạn. Nhập lại giúp mình với số nha.");
+                    return;
+                }
+                const age = parseInt(value);
+                userData.age = age;
+                const currentYear = new Date().getFullYear();
+                const birthYear = currentYear - age;
+                userData.birthYear = birthYear;
+                setUserData(userData);
+
+                addMessage(`🧮 Nếu bạn ${age} tuổi thì mình đoán bạn sinh năm <strong>${birthYear}</strong>, đúng không?`);
+
+                const buttons = `
+    <button onclick="confirmBirthYear(true)">✅ Đúng rồi</button>
+    <button onclick="confirmBirthYear(false)">❌ Không đúng</button>
+  `;
+                chatBox.insertAdjacentHTML("beforeend", `
+    <div class="message-row assistant">
+      <img class="avatar" src="${assistantAvatar}">
+      <div class="bubble assistant">${buttons}</div>
+    </div>
+  `);
+                chatBox.scrollTop = chatBox.scrollHeight;
+
+                currentQuestion = null;
+            }
+            else if (currentQuestion === "birthYear") {
+                const year = parseInt(value);
+                if (!year || year < 1900 || year > new Date().getFullYear()) {
+                    addMessage("🤔 Năm sinh không hợp lệ. Bạn nhập lại giúp mình nhé?");
+                    return;
+                }
+                userData.birthYear = year;
+                userData.age = new Date().getFullYear() - year;
+                setUserData(userData);
+                addMessage(`📌 Mình đã ghi nhớ: bạn sinh năm ${year} và ${userData.age} tuổi.`);
+            }
+
+            const dictResult = lookupDictionary(value);
+            if (dictResult) {
+                addMessage(dictResult);
+                userInput.value = "";
+                setTimeout(() => {
+                    sendButton.classList.remove("loading");
+                }, 600); // Kết thúc loading sau khi phản hồi xong
+                return;
+            }
+
+            // ❓ Nếu đang chờ trả lời cho câu hỏi cụ thể → không phản hồi random
+            // if (currentQuestion) return;    
+
+
+            // 🧠 Nếu không thuộc bất kỳ câu hỏi nào → kiểm tra toán học
+            const mathResult = handleMathQuestion(value);
+            if (mathResult) {
+                addMessage(mathResult);
+                userInput.value = "";
+                setTimeout(() => {
+                    sendButton.classList.remove("loading");
+                }, 600); // Kết thúc loading sau khi phản hồi xong
+                return;
+            }
+
+            if (!currentQuestion && !mathResult) {
+                // ✨ Phản hồi khi không nằm trong danh sách câu hỏi
+                const randomReplies = [
+                    // Thân thiện
+                    "Ồ... bạn đang nói gì thế nhỉ? 🤔",
+                    "Mình đang nghe đây, bạn nói tiếp đi 😄",
+                    "Nghe thú vị ghê! Bạn kể thêm nhé!",
+                    "Zợ hở? 😝", "Ố dề? 😆", "Gì dzợ? Nói rõ thêm coi~ 🐒",
+                    "Bạn đang muốn nói điều gì đó quan trọng đúng không?",
+                    "Có vẻ thú vị đấy... nói kỹ hơn đi! 😊",
+
+                    // Lục bát vui vẻ
+                    "Trăm năm trong cõi người ta, nói thêm chút nữa cho ta hiểu nà! 💬",
+                    "Trên trời mây trắng bay bay, bạn nói tiếp để mình mê say nhé 😄",
+                    "Bên kia sông có đò đưa, nói thêm chút nữa cho vừa lòng nhau 😘",
+                    "Nói chi một tiếng cho xong, nói thêm đôi chữ tấm lòng càng vui 🥰",
+
+                    // Thành ngữ dân gian / truyền cảm
+                    "Ý bạn sâu sắc như biển cả vậy 😌",
+                    "Nghe mà thấy tâm đắc luôn đó nha!",
+                    "Chữ nghĩa thâm sâu, lòng mình bỗng nhẹ nhõm 🍃",
+                    "Nói thế ai mà cãi nổi 😅",
+                    "Ý tứ như thơ, lòng mơ màng quá ~ 🌸",
+                    "Bạn nói vậy… nghe xong mình cũng muốn suy nghĩ lại 🤯"
+                ];
+
+                const random = randomReplies[Math.floor(Math.random() * randomReplies.length)];
+                addMessage(random);
+            }
+
+            setTimeout(() => {
+                sendButton.classList.remove("loading");
+            }, 600); // Kết thúc loading sau khi phản hồi xong
+
+            currentQuestion = null;
+            userInput.value = "";
+            setTimeout(() => {
+                sendButton.classList.remove("loading");
+            }, 600); // Kết thúc loading sau khi phản hồi xong
+        }
+
+        function confirmBirthYear(correct) {
+            if (correct) {
+                addMessage("🎉 Tuyệt! Mình sẽ nhớ năm sinh của bạn nhé!");
+            } else {
+                addMessage("😅 Vậy bạn cho mình biết năm sinh đúng được không?");
+                currentQuestion = "birthYear";
+            }
+        }
+
+
+        function removeVietnameseTones(str) {
+            return str.normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "") // remove diacritics
+                .replace(/đ/g, "d").replace(/Đ/g, "D");
+        }
+
+        function handleMathQuestion(input) {
+            const map = {
+                "mot": 1, "hai": 2, "ba": 3, "bon": 4, "nam": 5,
+                "sau": 6, "bay": 7, "tam": 8, "chin": 9, "muoi": 10,
+                "muoi mot": 11, "muoi hai": 12, "mot tram": 100
+            };
+
+            let expr = removeVietnameseTones(input.toLowerCase())
+                .replace(/=/g, "")
+                .replace(/\?/g, "")
+                .replace(/la may/g, "")
+                .replace(/bang may/g, "")
+                .replace(/cong/g, "+")
+                .replace(/tru/g, "-")
+                .replace(/nhan|x|×/g, "*")
+                .replace(/chia/g, "/")
+                .replace(/ +/g, " ")
+                .trim();
+
+            Object.entries(map).forEach(([word, num]) => {
+                const regex = new RegExp(`\\b${word}\\b`, 'g');
+                expr = expr.replace(regex, num);
+            });
+
+            if (/[\d]+[\s]*[\+\-\*\/][\s]*[\d]+/.test(expr)) {
+                try {
+                    const parts = expr.split("/");
+                    if (parts[1] && parseFloat(parts[1]) === 0) {
+                        return "❌ Chia cho 0 là không xác định rồi bạn ơi!";
+                    }
+                    const result = eval(expr);
+                    return `📐 Kết quả là: <strong>${result}</strong>`;
+                } catch (e) {
+                    return "🤔 Mình chưa hiểu rõ phép toán này...";
+                }
+            }
+
+            return null;
+        }
+
+
+
+
+        function confirmUserName(correct) {
+            if (correct) {
+                addMessage("✅ Tuyệt! Mình nhớ rất giỏi đúng không nào? 😎");
+            } else {
+                addMessage("😢 Ôi xin lỗi... Có lẽ mình nhầm rồi. Bạn có thể cho mình biết tên thật không?");
+                const userData = getUserData();
+                delete userData.name;
+                delete userData.age;
+                delete userData.location;
+                setUserData(userData);
+                currentQuestion = "name";
+            }
+        }
+
+        function handleAgeGuess(correct) {
+            if (correct) {
+                const userData = getUserData();
+                userData.age = guessedAge;
+                setUserData(userData);
+                addMessage(`😄 Tuyệt! Vậy mình sẽ nhớ bạn <strong>${guessedAge}</strong> tuổi nha!`);
+            } else {
+                addMessage("😅 Bạn vui lòng cho mình biết tuổi thật nhé?");
+                currentQuestion = "age";
+            }
+        }
+
+        function showTimeByLocation(location) {
+            const zones = {
+                "Việt Nam": "Asia/Ho_Chi_Minh",
+                "Nhật Bản": "Asia/Tokyo",
+                "Hoa Kỳ": "America/New_York",
+                "Pháp": "Europe/Paris",
+                "Úc": "Australia/Sydney"
+            };
+            const tz = zones[location] || "Asia/Ho_Chi_Minh";
+            const now = new Date();
+
+            if (lastAsked === "time") {
+                const time = now.toLocaleTimeString("vi-VN", { timeZone: tz });
+                addMessage(`🕒 Tại <strong>${location}</strong>, bây giờ là <strong>${time}</strong>.`);
+            } else if (lastAsked === "day") {
+                const day = now.toLocaleDateString("vi-VN", { weekday: "long", timeZone: tz });
+                addMessage(`📅 Hôm nay là <strong>${day}</strong> tại <strong>${location}</strong>.`);
+            } else if (lastAsked === "date") {
+                const date = now.toLocaleDateString("vi-VN", { timeZone: tz });
+                addMessage(`📆 Ngày hôm nay ở <strong>${location}</strong> là <strong>${date}</strong>.`);
+            } else if (lastAsked === "month") {
+                const month = now.toLocaleDateString("vi-VN", { month: "long", timeZone: tz });
+                addMessage(`🗓️ Tháng hiện tại ở <strong>${location}</strong> là <strong>${month}</strong>.`);
+            } else if (lastAsked === "year") {
+                const year = now.toLocaleDateString("vi-VN", { year: "numeric", timeZone: tz });
+                addMessage(`📈 Năm nay là <strong>${year}</strong> tại <strong>${location}</strong>.`);
+            } else if (lastAsked === "century") {
+                const year = parseInt(now.toLocaleDateString("vi-VN", { year: "numeric", timeZone: tz }));
+                const century = Math.ceil(year / 100);
+                addMessage(`🌀 Chúng ta đang sống ở <strong>thế kỷ ${century}</strong> tại <strong>${location}</strong>!`);
+            }
+        }
+
+
+
+        window.onload = () => {
+            addMessage("🌈 Xin chào! Mình là trợ lý ảo của bạn 🤖. Cùng bắt đầu trò chuyện nào!");
+
+            userInput.addEventListener("keypress", function (e) {
+                if (e.key === "Enter") {
+                    submitUserInput();
+                    userInput.value = "";
+                }
+            });
+
+        };
+
+
+        function lookupDictionary(input) {
+            const keyword = input.trim().toLowerCase();
+            let foundExact = null;
+            let foundPartial = null;
+            let foundChineseBreakdown = "";
+
+            // 1. Duyệt qua từng chủ đề
+            for (const topic in miniDictionary) {
+                for (const entry of miniDictionary[topic]) {
+                    const vi = entry.vi.toLowerCase();
+                    const zh = entry.zh;
+                    const en = entry.en;
+                    const emoji = entry.emoji ? entry.emoji + " " : "";
+                    // 1a. Tìm khớp chính xác tiếng Việt
+                    if (vi === keyword) {
+                        foundExact = `${emoji}
+  🇻🇳 <strong>${entry.vi}</strong><br>
+  🇨🇳 ${zh.hanzi} (${zh.hanviet}, ${zh.pinyin})
+  <button onclick="speakText('${zh.pinyin}', 'zh-CN')">🔊</button><br>
+  🇬🇧 ${en.word} (${en.ipa})
+  <button onclick="speakText('${en.word}', 'en-US')">🔊</button>
+`;
+
+                        break;
+                    }
+
+                    // 1b. Tìm khớp một phần tiếng Việt
+                    if (!foundPartial && vi.includes(keyword)) {
+                        foundPartial = `${emoji}
+  🇻🇳 <strong>${entry.vi}</strong><br>
+  🇨🇳 ${zh.hanzi} (${zh.hanviet}, ${zh.pinyin})
+  <button onclick="speakText('${zh.pinyin}', 'zh-CN')">🔊</button><br>
+  🇬🇧 ${en.word} (${en.ipa})
+  <button onclick="speakText('${en.word}', 'en-US')">🔊</button>
+`;
+
+                    }
+
+                    // 1c. Tìm khớp tiếng Trung / Hán Việt / Pinyin / English
+                    const zhMatch = [zh.hanzi, zh.hanviet, zh.pinyin].map(s => s.toLowerCase());
+                    const enMatch = [en.word, en.ipa].map(s => s.toLowerCase());
+                    if (zhMatch.includes(keyword) || enMatch.includes(keyword)) {
+                        foundExact = `${emoji}
+  🈶 <strong>${keyword}</strong> là <strong>“${entry.vi}”</strong> trong tiếng Việt 🇻🇳<br>
+  <button onclick="speakText('${entry.vi}', 'vi-VN')">🔊</button>
+`;
+
+                        break;
+                    }
+                }
+            }
+
+            // 2. Nếu là cụm nhiều chữ Trung → giải nghĩa từng chữ Hán
+            if (!foundExact && /^[\u4e00-\u9fff]+$/.test(keyword)) {
+                for (const char of keyword) {
+                    for (const topic in miniDictionary) {
+                        for (const entry of miniDictionary[topic]) {
+                            if (entry.zh.hanzi === char) {
+                                foundChineseBreakdown += `${char} – ${entry.zh.hanviet} (${entry.zh.pinyin}): ${entry.vi}
+<button onclick="speakText('${entry.zh.pinyin}', 'zh-CN')">🔊</button><br>`;
+
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (foundChineseBreakdown) {
+                    return `<strong>🀄 Giải nghĩa từng chữ:</strong><br>${foundChineseBreakdown}`;
+                }
+            }
+
+            // 3. Trả kết quả phù hợp
+            // return foundExact || foundPartial || null;
+            return foundExact || foundPartial || foundChineseBreakdown || null;
+
+        }
+        function handleUnlistedDictionaryWord(word) {
+            const found = findInMiniDictionary(word);
+            if (!found) {
+                return false;
+            }
+
+            const { vi, zh, en } = found;
+
+            const html = `
+    <div>
+      🇻🇳 <strong>${vi}</strong><br>
+      🇨🇳 ${zh.hanzi} (${zh.hanviet}, <em>${zh.pinyin}</em>)
+      <button onclick="speakText('${zh.pinyin}', 'zh-CN')">🔊</button><br>
+      🇬🇧 ${en.word} (<em>${en.ipa}</em>)
+      <button onclick="speakText('${en.word}', 'en-US')">🔊</button>
+    </div>
+  `;
+
+            addMessage(html);
+            return true;
+        }
+
+        function speakText(text, lang = 'en-US') {
+            const utter = new SpeechSynthesisUtterance(text);
+            utter.lang = lang;
+            utter.rate = 0.95; // tốc độ đọc tự nhiên
+            speechSynthesis.speak(utter);
+        }
+
+
+        const miniDictionary = {
+            "Động vật gần gũi": [
+                { "vi": "con mèo", "emoji": "🐱", "zh": { "hanzi": "猫", "hanviet": "miêu", "pinyin": "māo" }, "en": { "word": "cat", "ipa": "/kæt/" } },
+                { "vi": "con chó", "emoji": "🐶", "zh": { "hanzi": "狗", "hanviet": "cẩu", "pinyin": "gǒu" }, "en": { "word": "dog", "ipa": "/dɒɡ/" } },
+                { "vi": "con cá", "emoji": "🐟", "zh": { "hanzi": "鱼", "hanviet": "ngư", "pinyin": "yú" }, "en": { "word": "fish", "ipa": "/fɪʃ/" } },
+                { "vi": "con gà", "emoji": "🐔", "zh": { "hanzi": "鸡", "hanviet": "kê", "pinyin": "jī" }, "en": { "word": "chicken", "ipa": "/ˈtʃɪk.ɪn/" } },
+                { "vi": "con vịt", "emoji": "🦆", "zh": { "hanzi": "鸭", "hanviet": "áp", "pinyin": "yā" }, "en": { "word": "duck", "ipa": "/dʌk/" } },
+                { "vi": "con heo", "emoji": "🐷", "zh": { "hanzi": "猪", "hanviet": "trư", "pinyin": "zhū" }, "en": { "word": "pig", "ipa": "/pɪɡ/" } },
+                { "vi": "con bò", "emoji": "🐮", "zh": { "hanzi": "牛", "hanviet": "ngưu", "pinyin": "niú" }, "en": { "word": "cow", "ipa": "/kaʊ/" } },
+                { "vi": "con trâu", "emoji": "🐃", "zh": { "hanzi": "水牛", "hanviet": "thuỷ ngưu", "pinyin": "shuǐniú" }, "en": { "word": "buffalo", "ipa": "/ˈbʌf.ə.ləʊ/" } },
+                { "vi": "con ngựa", "emoji": "🐴", "zh": { "hanzi": "马", "hanviet": "mã", "pinyin": "mǎ" }, "en": { "word": "horse", "ipa": "/hɔːs/" } },
+                { "vi": "con dê", "emoji": "🐐", "zh": { "hanzi": "羊", "hanviet": "dương", "pinyin": "yáng" }, "en": { "word": "goat", "ipa": "/ɡəʊt/" } },
+                { "vi": "con thỏ", "emoji": "🐰", "zh": { "hanzi": "兔子", "hanviet": "thố tử", "pinyin": "tùzi" }, "en": { "word": "rabbit", "ipa": "/ˈræb.ɪt/" } },
+                { "vi": "con voi", "emoji": "🐘", "zh": { "hanzi": "大象", "hanviet": "đại tượng", "pinyin": "dàxiàng" }, "en": { "word": "elephant", "ipa": "/ˈel.ɪ.fənt/" } },
+                { "vi": "con khỉ", "emoji": "🐒", "zh": { "hanzi": "猴子", "hanviet": "hầu tử", "pinyin": "hóuzi" }, "en": { "word": "monkey", "ipa": "/ˈmʌŋ.ki/" } },
+                { "vi": "con gấu", "emoji": "🐻", "zh": { "hanzi": "熊", "hanviet": "hùng", "pinyin": "xióng" }, "en": { "word": "bear", "ipa": "/beə/" } },
+                { "vi": "con hổ", "emoji": "🐯", "zh": { "hanzi": "老虎", "hanviet": "lão hổ", "pinyin": "lǎohǔ" }, "en": { "word": "tiger", "ipa": "/ˈtaɪ.ɡər/" } },
+                { "vi": "con sư tử", "emoji": "🦁", "zh": { "hanzi": "狮子", "hanviet": "sư tử", "pinyin": "shīzi" }, "en": { "word": "lion", "ipa": "/ˈlaɪ.ən/" } },
+                { "vi": "con rùa", "emoji": "🐢", "zh": { "hanzi": "乌龟", "hanviet": "ô quy", "pinyin": "wūguī" }, "en": { "word": "turtle", "ipa": "/ˈtɜː.təl/" } },
+                { "vi": "con rắn", "emoji": "🐍", "zh": { "hanzi": "蛇", "hanviet": "xà", "pinyin": "shé" }, "en": { "word": "snake", "ipa": "/sneɪk/" } },
+                { "vi": "con chim", "emoji": "🐦", "zh": { "hanzi": "鸟", "hanviet": "điểu", "pinyin": "niǎo" }, "en": { "word": "bird", "ipa": "/bɜːd/" } },
+                { "vi": "con ong", "emoji": "🐝", "zh": { "hanzi": "蜜蜂", "hanviet": "mật phong", "pinyin": "mìfēng" }, "en": { "word": "bee", "ipa": "/biː/" } }
+            ]
+            ,
+
+            "Cảm xúc": [
+                { "vi": "vui", "emoji": "😄", "zh": { "hanzi": "高兴", "hanviet": "cao hứng", "pinyin": "gāo xìng" }, "en": { "word": "happy", "ipa": "/ˈhæpi/" } },
+                { "vi": "buồn", "emoji": "😢", "zh": { "hanzi": "难过", "hanviet": "nan quá", "pinyin": "nán guò" }, "en": { "word": "sad", "ipa": "/sæd/" } },
+                { "vi": "tức giận", "emoji": "😠", "zh": { "hanzi": "生气", "hanviet": "sinh khí", "pinyin": "shēng qì" }, "en": { "word": "angry", "ipa": "/ˈæŋ.ɡri/" } },
+                { "vi": "ngạc nhiên", "emoji": "😲", "zh": { "hanzi": "惊讶", "hanviet": "kinh nhạ", "pinyin": "jīng yà" }, "en": { "word": "surprised", "ipa": "/səˈpraɪzd/" } },
+                { "vi": "sợ", "emoji": "😨", "zh": { "hanzi": "害怕", "hanviet": "hại phạ", "pinyin": "hài pà" }, "en": { "word": "afraid", "ipa": "/əˈfreɪd/" } },
+                { "vi": "lo lắng", "emoji": "😟", "zh": { "hanzi": "担心", "hanviet": "đam tâm", "pinyin": "dān xīn" }, "en": { "word": "worried", "ipa": "/ˈwʌr.id/" } },
+                { "vi": "xấu hổ", "emoji": "😳", "zh": { "hanzi": "害羞", "hanviet": "hại tu", "pinyin": "hài xiū" }, "en": { "word": "shy", "ipa": "/ʃaɪ/" } },
+                { "vi": "mệt", "emoji": "😫", "zh": { "hanzi": "累", "hanviet": "luy", "pinyin": "lèi" }, "en": { "word": "tired", "ipa": "/ˈtaɪəd/" } },
+                { "vi": "thích", "emoji": "😍", "zh": { "hanzi": "喜欢", "hanviet": "hỉ hoan", "pinyin": "xǐ huān" }, "en": { "word": "like", "ipa": "/laɪk/" } },
+                { "vi": "ghét", "emoji": "😤", "zh": { "hanzi": "讨厌", "hanviet": "thảo yếm", "pinyin": "tǎo yàn" }, "en": { "word": "hate", "ipa": "/heɪt/" } },
+                { "vi": "bối rối", "emoji": "😕", "zh": { "hanzi": "困惑", "hanviet": "khốn hoặc", "pinyin": "kùn huò" }, "en": { "word": "confused", "ipa": "/kənˈfjuːzd/" } },
+                { "vi": "cô đơn", "emoji": "🥺", "zh": { "hanzi": "孤独", "hanviet": "cô độc", "pinyin": "gū dú" }, "en": { "word": "lonely", "ipa": "/ˈləʊn.li/" } },
+                { "vi": "tự hào", "emoji": "😎", "zh": { "hanzi": "自豪", "hanviet": "tự hào", "pinyin": "zì háo" }, "en": { "word": "proud", "ipa": "/praʊd/" } },
+                { "vi": "hạnh phúc", "emoji": "😊", "zh": { "hanzi": "幸福", "hanviet": "hạnh phúc", "pinyin": "xìng fú" }, "en": { "word": "joyful", "ipa": "/ˈdʒɔɪ.fəl/" } },
+                { "vi": "bình tĩnh", "emoji": "😌", "zh": { "hanzi": "冷静", "hanviet": "lãnh tĩnh", "pinyin": "lěng jìng" }, "en": { "word": "calm", "ipa": "/kɑːm/" } }
+            ]
+            ,
+            "Con người": [
+                { "vi": "mẹ", "emoji": "👩‍👧", "zh": { "hanzi": "妈妈", "hanviet": "ma ma", "pinyin": "māma" }, "en": { "word": "mother", "ipa": "/ˈmʌð.ər/" } },
+                { "vi": "bố", "emoji": "👨‍👧", "zh": { "hanzi": "爸爸", "hanviet": "ba ba", "pinyin": "bàba" }, "en": { "word": "father", "ipa": "/ˈfɑː.ðər/" } },
+                { "vi": "anh trai", "emoji": "👦", "zh": { "hanzi": "哥哥", "hanviet": "ca ca", "pinyin": "gēge" }, "en": { "word": "older brother", "ipa": "/ˈəʊl.dər ˈbrʌð.ər/" } },
+                { "vi": "em trai", "emoji": "👶👦", "zh": { "hanzi": "弟弟", "hanviet": "đệ đệ", "pinyin": "dìdi" }, "en": { "word": "younger brother", "ipa": "/ˈjʌŋ.ɡər ˈbrʌð.ər/" } },
+                { "vi": "chị gái", "emoji": "👧", "zh": { "hanzi": "姐姐", "hanviet": "tỉ tỉ", "pinyin": "jiějie" }, "en": { "word": "older sister", "ipa": "/ˈəʊl.dər ˈsɪs.tər/" } },
+                { "vi": "em gái", "emoji": "👶👧", "zh": { "hanzi": "妹妹", "hanviet": "muội muội", "pinyin": "mèimei" }, "en": { "word": "younger sister", "ipa": "/ˈjʌŋ.ɡər ˈsɪs.tər/" } },
+                { "vi": "ông", "emoji": "👴", "zh": { "hanzi": "爷爷", "hanviet": "gia gia", "pinyin": "yéye" }, "en": { "word": "grandfather", "ipa": "/ˈɡræn.fɑː.ðər/" } },
+                { "vi": "bà", "emoji": "👵", "zh": { "hanzi": "奶奶", "hanviet": "nãi nãi", "pinyin": "nǎinai" }, "en": { "word": "grandmother", "ipa": "/ˈɡræn.mʌð.ər/" } },
+                { "vi": "bạn", "emoji": "🧑‍🤝‍🧑", "zh": { "hanzi": "朋友", "hanviet": "bằng hữu", "pinyin": "péngyǒu" }, "en": { "word": "friend", "ipa": "/frɛnd/" } },
+                { "vi": "cô", "emoji": "👩", "zh": { "hanzi": "阿姨", "hanviet": "a di", "pinyin": "ā yí" }, "en": { "word": "aunt", "ipa": "/ɑːnt/" } },
+                { "vi": "chú", "emoji": "👨", "zh": { "hanzi": "叔叔", "hanviet": "thúc thúc", "pinyin": "shūshu" }, "en": { "word": "uncle", "ipa": "/ˈʌŋ.kəl/" } },
+                { "vi": "bé trai", "emoji": "👦", "zh": { "hanzi": "男孩", "hanviet": "nam hài", "pinyin": "nán hái" }, "en": { "word": "boy", "ipa": "/bɔɪ/" } },
+                { "vi": "bé gái", "emoji": "👧", "zh": { "hanzi": "女孩", "hanviet": "nữ hài", "pinyin": "nǚ hái" }, "en": { "word": "girl", "ipa": "/ɡɜːl/" } },
+                { "vi": "người lớn", "emoji": "🧑", "zh": { "hanzi": "大人", "hanviet": "đại nhân", "pinyin": "dà rén" }, "en": { "word": "adult", "ipa": "/ˈæd.ʌlt/" } },
+                { "vi": "trẻ em", "emoji": "🧒", "zh": { "hanzi": "孩子", "hanviet": "hài tử", "pinyin": "háizi" }, "en": { "word": "child", "ipa": "/tʃaɪld/" } }
+            ]
+            ,
+
+            "Động từ thường dùng": [
+                { "vi": "ăn", "emoji": "🍽️", "zh": { "hanzi": "吃", "hanviet": "cật", "pinyin": "chī" }, "en": { "word": "eat", "ipa": "/iːt/" } },
+                { "vi": "uống", "emoji": "🥤", "zh": { "hanzi": "喝", "hanviet": "hát", "pinyin": "hē" }, "en": { "word": "drink", "ipa": "/drɪŋk/" } },
+                { "vi": "ngủ", "emoji": "😴", "zh": { "hanzi": "睡觉", "hanviet": "thụy giác", "pinyin": "shuì jiào" }, "en": { "word": "sleep", "ipa": "/sliːp/" } },
+                { "vi": "chơi", "emoji": "⚽", "zh": { "hanzi": "玩", "hanviet": "ngoạn", "pinyin": "wán" }, "en": { "word": "play", "ipa": "/pleɪ/" } },
+                { "vi": "học", "emoji": "📚", "zh": { "hanzi": "学习", "hanviet": "học tập", "pinyin": "xué xí" }, "en": { "word": "study", "ipa": "/ˈstʌd.i/" } },
+                { "vi": "làm", "emoji": "💼", "zh": { "hanzi": "做", "hanviet": "tố", "pinyin": "zuò" }, "en": { "word": "do", "ipa": "/duː/" } },
+                { "vi": "đọc", "emoji": "📖", "zh": { "hanzi": "读", "hanviet": "độc", "pinyin": "dú" }, "en": { "word": "read", "ipa": "/riːd/" } },
+                { "vi": "viết", "emoji": "✍️", "zh": { "hanzi": "写", "hanviet": "tả", "pinyin": "xiě" }, "en": { "word": "write", "ipa": "/raɪt/" } },
+                { "vi": "nói", "emoji": "🗣️", "zh": { "hanzi": "说", "hanviet": "thuyết", "pinyin": "shuō" }, "en": { "word": "speak", "ipa": "/spiːk/" } },
+                { "vi": "nghe", "emoji": "👂", "zh": { "hanzi": "听", "hanviet": "thính", "pinyin": "tīng" }, "en": { "word": "listen", "ipa": "/ˈlɪs.ən/" } },
+                { "vi": "nhìn", "emoji": "👀", "zh": { "hanzi": "看", "hanviet": "khán", "pinyin": "kàn" }, "en": { "word": "look", "ipa": "/lʊk/" } },
+                { "vi": "chạy", "emoji": "🏃", "zh": { "hanzi": "跑", "hanviet": "bào", "pinyin": "pǎo" }, "en": { "word": "run", "ipa": "/rʌn/" } },
+                { "vi": "đi", "emoji": "🚶", "zh": { "hanzi": "走", "hanviet": "tẩu", "pinyin": "zǒu" }, "en": { "word": "go", "ipa": "/ɡəʊ/" } },
+                { "vi": "mở", "emoji": "🔓", "zh": { "hanzi": "打开", "hanviet": "đả khai", "pinyin": "dǎ kāi" }, "en": { "word": "open", "ipa": "/ˈəʊ.pən/" } },
+                { "vi": "đóng", "emoji": "🔒", "zh": { "hanzi": "关", "hanviet": "quan", "pinyin": "guān" }, "en": { "word": "close", "ipa": "/kləʊz/" } }
+            ]
+            ,
+
+            "Hoạt động hàng ngày": [
+                { "vi": "đánh răng", "emoji": "🪥", "zh": { "hanzi": "刷牙", "hanviet": "xoát nha", "pinyin": "shuā yá" }, "en": { "word": "brush teeth", "ipa": "/brʌʃ tiːθ/" } },
+                { "vi": "rửa tay", "emoji": "🧼", "zh": { "hanzi": "洗手", "hanviet": "tẩy thủ", "pinyin": "xǐ shǒu" }, "en": { "word": "wash hands", "ipa": "/wɒʃ hændz/" } },
+                { "vi": "mặc quần áo", "emoji": "👕", "zh": { "hanzi": "穿衣服", "hanviet": "xuyên y phục", "pinyin": "chuān yīfú" }, "en": { "word": "put on clothes", "ipa": "/pʊt ɒn kləʊðz/" } },
+                { "vi": "tắm", "emoji": "🛁", "zh": { "hanzi": "洗澡", "hanviet": "tẩy tảo", "pinyin": "xǐ zǎo" }, "en": { "word": "take a bath", "ipa": "/teɪk ə bɑːθ/" } },
+                { "vi": "ăn sáng", "emoji": "🍳", "zh": { "hanzi": "吃早饭", "hanviet": "cật tảo phạn", "pinyin": "chī zǎofàn" }, "en": { "word": "eat breakfast", "ipa": "/iːt ˈbrek.fəst/" } },
+                { "vi": "ăn trưa", "emoji": "🥪", "zh": { "hanzi": "吃午饭", "hanviet": "cật ngọ phạn", "pinyin": "chī wǔfàn" }, "en": { "word": "eat lunch", "ipa": "/iːt lʌntʃ/" } },
+                { "vi": "ăn tối", "emoji": "🍽️", "zh": { "hanzi": "吃晚饭", "hanviet": "cật vãn phạn", "pinyin": "chī wǎnfàn" }, "en": { "word": "eat dinner", "ipa": "/iːt ˈdɪn.ər/" } },
+                { "vi": "ngủ trưa", "emoji": "🛌", "zh": { "hanzi": "午睡", "hanviet": "ngọ thụy", "pinyin": "wǔ shuì" }, "en": { "word": "nap", "ipa": "/næp/" } },
+                { "vi": "thức dậy", "emoji": "⏰", "zh": { "hanzi": "起床", "hanviet": "khởi sàng", "pinyin": "qǐ chuáng" }, "en": { "word": "wake up", "ipa": "/weɪk ʌp/" } },
+                { "vi": "đi ngủ", "emoji": "🛏️", "zh": { "hanzi": "睡觉", "hanviet": "thụy giác", "pinyin": "shuì jiào" }, "en": { "word": "go to sleep", "ipa": "/ɡəʊ tə sliːp/" } },
+                { "vi": "chào buổi sáng", "emoji": "🌞", "zh": { "hanzi": "早安", "hanviet": "tảo an", "pinyin": "zǎo ān" }, "en": { "word": "good morning", "ipa": "/ɡʊd ˈmɔː.nɪŋ/" } },
+                { "vi": "tạm biệt", "emoji": "👋", "zh": { "hanzi": "再见", "hanviet": "tái kiến", "pinyin": "zài jiàn" }, "en": { "word": "goodbye", "ipa": "/ˌɡʊdˈbaɪ/" } },
+                { "vi": "xin chào", "emoji": "😊", "zh": { "hanzi": "你好", "hanviet": "nhĩ hảo", "pinyin": "nǐ hǎo" }, "en": { "word": "hello", "ipa": "/həˈləʊ/" } },
+                { "vi": "ngáp", "emoji": "🥱", "zh": { "hanzi": "打哈欠", "hanviet": "đả ha khiếm", "pinyin": "dǎ hāqian" }, "en": { "word": "yawn", "ipa": "/jɔːn/" } },
+                { "vi": "lau mặt", "emoji": "🧽", "zh": { "hanzi": "洗脸", "hanviet": "tẩy diện", "pinyin": "xǐ liǎn" }, "en": { "word": "wash face", "ipa": "/wɒʃ feɪs/" } },
+            ],
+
+            "Địa điểm quen thuộc": [
+                { "vi": "nhà", "emoji": "🏠", "zh": { "hanzi": "家", "hanviet": "gia", "pinyin": "jiā" }, "en": { "word": "home", "ipa": "/hoʊm/" } },
+                { "vi": "trường học", "emoji": "🏫", "zh": { "hanzi": "学校", "hanviet": "học hiệu", "pinyin": "xué xiào" }, "en": { "word": "school", "ipa": "/skuːl/" } },
+                { "vi": "bệnh viện", "emoji": "🏥", "zh": { "hanzi": "医院", "hanviet": "y viện", "pinyin": "yī yuàn" }, "en": { "word": "hospital", "ipa": "/ˈhɒs.pɪ.təl/" } },
+                { "vi": "công viên", "emoji": "🌳", "zh": { "hanzi": "公园", "hanviet": "công viên", "pinyin": "gōng yuán" }, "en": { "word": "park", "ipa": "/pɑːk/" } },
+                { "vi": "siêu thị", "emoji": "🛒", "zh": { "hanzi": "超市", "hanviet": "siêu thị", "pinyin": "chāo shì" }, "en": { "word": "supermarket", "ipa": "/ˈsuː.pəˌmɑː.kɪt/" } },
+                { "vi": "nhà vệ sinh", "emoji": "🚽", "zh": { "hanzi": "厕所", "hanviet": "xí sở", "pinyin": "cè suǒ" }, "en": { "word": "toilet", "ipa": "/ˈtɔɪ.lət/" } },
+                { "vi": "nhà bếp", "emoji": "🍽️", "zh": { "hanzi": "厨房", "hanviet": "trù phòng", "pinyin": "chú fáng" }, "en": { "word": "kitchen", "ipa": "/ˈkɪtʃ.ən/" } },
+                { "vi": "phòng ngủ", "emoji": "🛏️", "zh": { "hanzi": "卧室", "hanviet": "ngọa thất", "pinyin": "wò shì" }, "en": { "word": "bedroom", "ipa": "/ˈbed.ruːm/" } },
+                { "vi": "nhà tắm", "emoji": "🛁", "zh": { "hanzi": "浴室", "hanviet": "dục thất", "pinyin": "yù shì" }, "en": { "word": "bathroom", "ipa": "/ˈbɑːθ.ruːm/" } },
+                { "vi": "phòng khách", "emoji": "🛋️", "zh": { "hanzi": "客厅", "hanviet": "khách sảnh", "pinyin": "kè tīng" }, "en": { "word": "living room", "ipa": "/ˈlɪv.ɪŋ ruːm/" } },
+            ],
+
+            "Đồ vật trong nhà": [
+                { "vi": "cái bàn", "emoji": "🪑", "zh": { "hanzi": "桌子", "hanviet": "trác tử", "pinyin": "zhuōzi" }, "en": { "word": "table", "ipa": "/ˈteɪ.bəl/" } },
+                { "vi": "cái ghế", "emoji": "🪑", "zh": { "hanzi": "椅子", "hanviet": "ỷ tử", "pinyin": "yǐzi" }, "en": { "word": "chair", "ipa": "/tʃeə/" } },
+                { "vi": "giường", "emoji": "🛏️", "zh": { "hanzi": "床", "hanviet": "sàng", "pinyin": "chuáng" }, "en": { "word": "bed", "ipa": "/bed/" } },
+                { "vi": "tủ lạnh", "emoji": "🧊", "zh": { "hanzi": "冰箱", "hanviet": "băng tương", "pinyin": "bīng xiāng" }, "en": { "word": "fridge", "ipa": "/frɪdʒ/" } },
+                { "vi": "tivi", "emoji": "📺", "zh": { "hanzi": "电视", "hanviet": "điện thị", "pinyin": "diàn shì" }, "en": { "word": "TV", "ipa": "/ˌtiːˈviː/" } },
+                { "vi": "quạt", "emoji": "🌀", "zh": { "hanzi": "电风扇", "hanviet": "điện phong phiến", "pinyin": "diàn fēng shàn" }, "en": { "word": "fan", "ipa": "/fæn/" } },
+                { "vi": "đèn", "emoji": "💡", "zh": { "hanzi": "灯", "hanviet": "đăng", "pinyin": "dēng" }, "en": { "word": "lamp", "ipa": "/læmp/" } },
+                { "vi": "gối", "emoji": "🛏️", "zh": { "hanzi": "枕头", "hanviet": "chẩm đầu", "pinyin": "zhěn tou" }, "en": { "word": "pillow", "ipa": "/ˈpɪl.əʊ/" } },
+                { "vi": "chăn", "emoji": "🛌", "zh": { "hanzi": "被子", "hanviet": "bị tử", "pinyin": "bèi zi" }, "en": { "word": "blanket", "ipa": "/ˈblæŋ.kɪt/" } },
+                { "vi": "gương", "emoji": "🪞", "zh": { "hanzi": "镜子", "hanviet": "kính tử", "pinyin": "jìng zi" }, "en": { "word": "mirror", "ipa": "/ˈmɪr.ər/" } },
+            ],
+
+            "Đồ dùng học tập": [
+                { "vi": "sách", "emoji": "📚", "zh": { "hanzi": "书", "hanviet": "thư", "pinyin": "shū" }, "en": { "word": "book", "ipa": "/bʊk/" } },
+                { "vi": "bút", "emoji": "🖊️", "zh": { "hanzi": "笔", "hanviet": "bút", "pinyin": "bǐ" }, "en": { "word": "pen", "ipa": "/pen/" } },
+                { "vi": "vở", "emoji": "📓", "zh": { "hanzi": "笔记本", "hanviet": "bút ký bản", "pinyin": "bǐ jì běn" }, "en": { "word": "notebook", "ipa": "/ˈnəʊt.bʊk/" } },
+                { "vi": "bảng", "emoji": "🖍️", "zh": { "hanzi": "黑板", "hanviet": "hắc bản", "pinyin": "hēi bǎn" }, "en": { "word": "blackboard", "ipa": "/ˈblæk.bɔːd/" } },
+                { "vi": "phấn", "emoji": "🧽", "zh": { "hanzi": "粉笔", "hanviet": "phấn bút", "pinyin": "fěn bǐ" }, "en": { "word": "chalk", "ipa": "/tʃɔːk/" } },
+                { "vi": "cục tẩy", "emoji": "🩹", "zh": { "hanzi": "橡皮", "hanviet": "tượng bì", "pinyin": "xiàng pí" }, "en": { "word": "eraser", "ipa": "/ɪˈreɪ.sər/" } },
+                { "vi": "thước kẻ", "emoji": "📏", "zh": { "hanzi": "尺子", "hanviet": "xích tử", "pinyin": "chǐ zi" }, "en": { "word": "ruler", "ipa": "/ˈruː.lər/" } },
+                { "vi": "kéo", "emoji": "✂️", "zh": { "hanzi": "剪刀", "hanviet": "tiễn đao", "pinyin": "jiǎn dāo" }, "en": { "word": "scissors", "ipa": "/ˈsɪz.əz/" } },
+                { "vi": "bút chì", "emoji": "✏️", "zh": { "hanzi": "铅笔", "hanviet": "duyên bút", "pinyin": "qiān bǐ" }, "en": { "word": "pencil", "ipa": "/ˈpen.səl/" } },
+                { "vi": "cặp sách", "emoji": "🎒", "zh": { "hanzi": "书包", "hanviet": "thư bao", "pinyin": "shū bāo" }, "en": { "word": "school bag", "ipa": "/skuːl bæɡ/" } }
+            ],
+
+            "Nghề nghiệp": [
+                { "vi": "bác sĩ", "emoji": "🩺", "zh": { "hanzi": "医生", "hanviet": "y sinh", "pinyin": "yī shēng" }, "en": { "word": "doctor", "ipa": "/ˈdɒk.tər/" } },
+                { "vi": "giáo viên", "emoji": "👩‍🏫", "zh": { "hanzi": "老师", "hanviet": "lão sư", "pinyin": "lǎo shī" }, "en": { "word": "teacher", "ipa": "/ˈtiː.tʃər/" } },
+                { "vi": "kỹ sư", "emoji": "👷‍♂️", "zh": { "hanzi": "工程师", "hanviet": "công trình sư", "pinyin": "gōng chéng shī" }, "en": { "word": "engineer", "ipa": "/ˌen.dʒɪˈnɪər/" } },
+                { "vi": "công nhân", "emoji": "🧑‍🏭", "zh": { "hanzi": "工人", "hanviet": "công nhân", "pinyin": "gōng rén" }, "en": { "word": "worker", "ipa": "/ˈwɜː.kər/" } },
+                { "vi": "cảnh sát", "emoji": "👮‍♂️", "zh": { "hanzi": "警察", "hanviet": "cảnh sát", "pinyin": "jǐng chá" }, "en": { "word": "police", "ipa": "/pəˈliːs/" } },
+                { "vi": "lính cứu hỏa", "emoji": "🚒", "zh": { "hanzi": "消防员", "hanviet": "tiêu phòng viên", "pinyin": "xiāo fáng yuán" }, "en": { "word": "firefighter", "ipa": "/ˈfaɪəˌfaɪ.tər/" } },
+                { "vi": "nông dân", "emoji": "👩‍🌾", "zh": { "hanzi": "农民", "hanviet": "nông dân", "pinyin": "nóng mín" }, "en": { "word": "farmer", "ipa": "/ˈfɑː.mər/" } },
+                { "vi": "thợ xây", "emoji": "🏗️", "zh": { "hanzi": "建筑工人", "hanviet": "kiến trúc công nhân", "pinyin": "jiàn zhù gōng rén" }, "en": { "word": "builder", "ipa": "/ˈbɪl.dər/" } },
+                { "vi": "nhân viên bán hàng", "emoji": "🛍️", "zh": { "hanzi": "售货员", "hanviet": "thụ hàng viên", "pinyin": "shòu huò yuán" }, "en": { "word": "salesperson", "ipa": "/ˈseɪlzˌpɜː.sən/" } },
+                { "vi": "bưu tá", "emoji": "📬", "zh": { "hanzi": "邮递员", "hanviet": "bưu đệ viên", "pinyin": "yóu dì yuán" }, "en": { "word": "postman", "ipa": "/ˈpəʊst.mən/" } }
+            ],
+            "Phương tiện giao thông": [
+                { "vi": "xe đạp", "emoji": "🚲", "zh": { "hanzi": "自行车", "hanviet": "tự hành xa", "pinyin": "zì xíng chē" }, "en": { "word": "bicycle", "ipa": "/ˈbaɪ.sɪ.kəl/" } },
+                { "vi": "xe máy", "emoji": "🏍️", "zh": { "hanzi": "摩托车", "hanviet": "ma thác xa", "pinyin": "mó tuō chē" }, "en": { "word": "motorbike", "ipa": "/ˈməʊ.tə.baɪk/" } },
+                { "vi": "xe hơi", "emoji": "🚗", "zh": { "hanzi": "汽车", "hanviet": "khí xa", "pinyin": "qì chē" }, "en": { "word": "car", "ipa": "/kɑːr/" } },
+                { "vi": "xe buýt", "emoji": "🚌", "zh": { "hanzi": "公共汽车", "hanviet": "công cộng khí xa", "pinyin": "gōng gòng qì chē" }, "en": { "word": "bus", "ipa": "/bʌs/" } },
+                { "vi": "tàu hỏa", "emoji": "🚆", "zh": { "hanzi": "火车", "hanviet": "hỏa xa", "pinyin": "huǒ chē" }, "en": { "word": "train", "ipa": "/treɪn/" } },
+                { "vi": "tàu thủy", "emoji": "🚢", "zh": { "hanzi": "轮船", "hanviet": "luân thuyền", "pinyin": "lún chuán" }, "en": { "word": "ship", "ipa": "/ʃɪp/" } },
+                { "vi": "máy bay", "emoji": "✈️", "zh": { "hanzi": "飞机", "hanviet": "phi cơ", "pinyin": "fēi jī" }, "en": { "word": "airplane", "ipa": "/ˈeə.pleɪn/" } },
+                { "vi": "xe tải", "emoji": "🚛", "zh": { "hanzi": "卡车", "hanviet": "khỏa xa", "pinyin": "kǎ chē" }, "en": { "word": "truck", "ipa": "/trʌk/" } },
+                { "vi": "xe điện", "emoji": "🛴", "zh": { "hanzi": "电动车", "hanviet": "điện động xa", "pinyin": "diàn dòng chē" }, "en": { "word": "electric bike", "ipa": "/ɪˈlɛk.trɪk baɪk/" } },
+                { "vi": "xe cứu thương", "emoji": "🚑", "zh": { "hanzi": "救护车", "hanviet": "cứu hộ xa", "pinyin": "jiù hù chē" }, "en": { "word": "ambulance", "ipa": "/ˈæm.bjə.ləns/" } }
+            ],
+
+            "Công nghệ đơn giản": [
+                { "vi": "điện thoại", "emoji": "📱", "zh": { "hanzi": "电话", "hanviet": "điện thoại", "pinyin": "diàn huà" }, "en": { "word": "phone", "ipa": "/fəʊn/" } },
+                { "vi": "máy tính", "emoji": "💻", "zh": { "hanzi": "电脑", "hanviet": "điện não", "pinyin": "diàn nǎo" }, "en": { "word": "computer", "ipa": "/kəmˈpjuː.tər/" } },
+                { "vi": "máy ảnh", "emoji": "📷", "zh": { "hanzi": "照相机", "hanviet": "chiếu tướng cơ", "pinyin": "zhào xiàng jī" }, "en": { "word": "camera", "ipa": "/ˈkæm.rə/" } },
+                { "vi": "ti vi", "emoji": "📺", "zh": { "hanzi": "电视", "hanviet": "điện thị", "pinyin": "diàn shì" }, "en": { "word": "TV", "ipa": "/ˌtiːˈviː/" } },
+                { "vi": "máy in", "emoji": "🖨️", "zh": { "hanzi": "打印机", "hanviet": "đả ấn cơ", "pinyin": "dǎ yìn jī" }, "en": { "word": "printer", "ipa": "/ˈprɪn.tər/" } },
+                { "vi": "máy giặt", "emoji": "🧺", "zh": { "hanzi": "洗衣机", "hanviet": "tẩy y cơ", "pinyin": "xǐ yī jī" }, "en": { "word": "washing machine", "ipa": "/ˈwɒʃ.ɪŋ məˌʃiːn/" } },
+                { "vi": "tủ lạnh", "emoji": "🧊", "zh": { "hanzi": "冰箱", "hanviet": "băng tương", "pinyin": "bīng xiāng" }, "en": { "word": "fridge", "ipa": "/frɪdʒ/" } },
+                { "vi": "máy sấy", "emoji": "🌀", "zh": { "hanzi": "烘干机", "hanviet": "hông can cơ", "pinyin": "hōng gān jī" }, "en": { "word": "dryer", "ipa": "/ˈdraɪ.ər/" } },
+                { "vi": "chuột máy tính", "emoji": "🖱️", "zh": { "hanzi": "鼠标", "hanviet": "thử tiêu", "pinyin": "shǔ biāo" }, "en": { "word": "mouse", "ipa": "/maʊs/" } },
+                { "vi": "bàn phím", "emoji": "⌨️", "zh": { "hanzi": "键盘", "hanviet": "kiện bàn", "pinyin": "jiàn pán" }, "en": { "word": "keyboard", "ipa": "/ˈkiː.bɔːd/" } }
+            ],
+
+            "Thức ăn & đồ uống": [
+                { "vi": "cơm", "emoji": "🍚", "zh": { "hanzi": "米饭", "hanviet": "mễ phạn", "pinyin": "mǐ fàn" }, "en": { "word": "rice", "ipa": "/raɪs/" } },
+                { "vi": "mì", "emoji": "🍜", "zh": { "hanzi": "面条", "hanviet": "miến điều", "pinyin": "miàn tiáo" }, "en": { "word": "noodles", "ipa": "/ˈnuː.dəlz/" } },
+                { "vi": "bánh mì", "emoji": "🥖", "zh": { "hanzi": "面包", "hanviet": "miến bao", "pinyin": "miàn bāo" }, "en": { "word": "bread", "ipa": "/bred/" } },
+                { "vi": "trứng", "emoji": "🥚", "zh": { "hanzi": "鸡蛋", "hanviet": "kê đản", "pinyin": "jī dàn" }, "en": { "word": "egg", "ipa": "/eɡ/" } },
+                { "vi": "sữa", "emoji": "🥛", "zh": { "hanzi": "牛奶", "hanviet": "ngưu nãi", "pinyin": "niú nǎi" }, "en": { "word": "milk", "ipa": "/mɪlk/" } },
+                { "vi": "nước", "emoji": "💧", "zh": { "hanzi": "水", "hanviet": "thuỷ", "pinyin": "shuǐ" }, "en": { "word": "water", "ipa": "/ˈwɔː.tər/" } },
+                { "vi": "nước ép", "emoji": "🧃", "zh": { "hanzi": "果汁", "hanviet": "quả trấp", "pinyin": "guǒ zhī" }, "en": { "word": "juice", "ipa": "/dʒuːs/" } },
+                { "vi": "trái cây", "emoji": "🍎", "zh": { "hanzi": "水果", "hanviet": "thuỷ quả", "pinyin": "shuǐ guǒ" }, "en": { "word": "fruit", "ipa": "/fruːt/" } },
+                { "vi": "rau", "emoji": "🥦", "zh": { "hanzi": "蔬菜", "hanviet": "sơ thái", "pinyin": "shū cài" }, "en": { "word": "vegetable", "ipa": "/ˈvedʒ.tə.bəl/" } },
+                { "vi": "kẹo", "emoji": "🍬", "zh": { "hanzi": "糖果", "hanviet": "đường quả", "pinyin": "táng guǒ" }, "en": { "word": "candy", "ipa": "/ˈkæn.di/" } }
+            ],
+
+            "Thời tiết & tự nhiên": [
+                { "vi": "mưa", "emoji": "🌧️", "zh": { "hanzi": "雨", "hanviet": "vũ", "pinyin": "yǔ" }, "en": { "word": "rain", "ipa": "/reɪn/" } },
+                { "vi": "nắng", "emoji": "☀️", "zh": { "hanzi": "晴", "hanviet": "tình", "pinyin": "qíng" }, "en": { "word": "sunny", "ipa": "/ˈsʌn.i/" } },
+                { "vi": "gió", "emoji": "💨", "zh": { "hanzi": "风", "hanviet": "phong", "pinyin": "fēng" }, "en": { "word": "wind", "ipa": "/wɪnd/" } },
+                { "vi": "tuyết", "emoji": "❄️", "zh": { "hanzi": "雪", "hanviet": "tuyết", "pinyin": "xuě" }, "en": { "word": "snow", "ipa": "/snəʊ/" } },
+                { "vi": "sấm sét", "emoji": "⚡", "zh": { "hanzi": "雷电", "hanviet": "lôi điện", "pinyin": "léi diàn" }, "en": { "word": "thunder", "ipa": "/ˈθʌn.dər/" } },
+                { "vi": "bầu trời", "emoji": "🌌", "zh": { "hanzi": "天空", "hanviet": "thiên không", "pinyin": "tiān kōng" }, "en": { "word": "sky", "ipa": "/skaɪ/" } },
+                { "vi": "mặt trời", "emoji": "🌞", "zh": { "hanzi": "太阳", "hanviet": "thái dương", "pinyin": "tài yáng" }, "en": { "word": "sun", "ipa": "/sʌn/" } },
+                { "vi": "mặt trăng", "emoji": "🌙", "zh": { "hanzi": "月亮", "hanviet": "nguyệt lượng", "pinyin": "yuè liàng" }, "en": { "word": "moon", "ipa": "/muːn/" } },
+                { "vi": "cây", "emoji": "🌳", "zh": { "hanzi": "树", "hanviet": "thụ", "pinyin": "shù" }, "en": { "word": "tree", "ipa": "/triː/" } },
+                { "vi": "hoa", "emoji": "🌸", "zh": { "hanzi": "花", "hanviet": "hoa", "pinyin": "huā" }, "en": { "word": "flower", "ipa": "/ˈflaʊ.ər/" } }
+            ],
+
+            "Màu sắc & hình dạng": [
+                { "vi": "đỏ", "emoji": "🔴", "zh": { "hanzi": "红色", "hanviet": "hồng sắc", "pinyin": "hóng sè" }, "en": { "word": "red", "ipa": "/red/" } },
+                { "vi": "xanh", "emoji": "🔵", "zh": { "hanzi": "蓝色", "hanviet": "lam sắc", "pinyin": "lán sè" }, "en": { "word": "blue", "ipa": "/bluː/" } },
+                { "vi": "vàng", "emoji": "🟡", "zh": { "hanzi": "黄色", "hanviet": "hoàng sắc", "pinyin": "huáng sè" }, "en": { "word": "yellow", "ipa": "/ˈjel.əʊ/" } },
+                { "vi": "xanh lá", "emoji": "🟢", "zh": { "hanzi": "绿色", "hanviet": "lục sắc", "pinyin": "lǜ sè" }, "en": { "word": "green", "ipa": "/ɡriːn/" } },
+                { "vi": "đen", "emoji": "⚫", "zh": { "hanzi": "黑色", "hanviet": "hắc sắc", "pinyin": "hēi sè" }, "en": { "word": "black", "ipa": "/blæk/" } },
+                { "vi": "trắng", "emoji": "⚪", "zh": { "hanzi": "白色", "hanviet": "bạch sắc", "pinyin": "bái sè" }, "en": { "word": "white", "ipa": "/waɪt/" } },
+                { "vi": "hình tròn", "emoji": "⚪", "zh": { "hanzi": "圆形", "hanviet": "viên hình", "pinyin": "yuán xíng" }, "en": { "word": "circle", "ipa": "/ˈsɜː.kəl/" } },
+                { "vi": "hình vuông", "emoji": "◼️", "zh": { "hanzi": "正方形", "hanviet": "chính phương hình", "pinyin": "zhèng fāng xíng" }, "en": { "word": "square", "ipa": "/skweə/" } },
+                { "vi": "hình tam giác", "emoji": "🔺", "zh": { "hanzi": "三角形", "hanviet": "tam giác hình", "pinyin": "sān jiǎo xíng" }, "en": { "word": "triangle", "ipa": "/ˈtraɪ.æŋ.ɡl/" } },
+                { "vi": "hình chữ nhật", "emoji": "▭", "zh": { "hanzi": "长方形", "hanviet": "trường phương hình", "pinyin": "cháng fāng xíng" }, "en": { "word": "rectangle", "ipa": "/ˈrek.tæŋ.ɡl/" } }
+            ],
+
+            "Thời gian & lịch": [
+                { "vi": "ngày", "emoji": "📅", "zh": { "hanzi": "天", "hanviet": "thiên", "pinyin": "tiān" }, "en": { "word": "day", "ipa": "/deɪ/" } },
+                { "vi": "tháng", "emoji": "🗓️", "zh": { "hanzi": "月", "hanviet": "nguyệt", "pinyin": "yuè" }, "en": { "word": "month", "ipa": "/mʌnθ/" } },
+                { "vi": "năm", "emoji": "📆", "zh": { "hanzi": "年", "hanviet": "niên", "pinyin": "nián" }, "en": { "word": "year", "ipa": "/jɪər/" } },
+                { "vi": "giờ", "emoji": "⏰", "zh": { "hanzi": "点", "hanviet": "điểm", "pinyin": "diǎn" }, "en": { "word": "hour", "ipa": "/ˈaʊər/" } },
+                { "vi": "phút", "emoji": "🕒", "zh": { "hanzi": "分钟", "hanviet": "phân chung", "pinyin": "fēn zhōng" }, "en": { "word": "minute", "ipa": "/ˈmɪn.ɪt/" } },
+                { "vi": "giây", "emoji": "⏱️", "zh": { "hanzi": "秒", "hanviet": "miểu", "pinyin": "miǎo" }, "en": { "word": "second", "ipa": "/ˈsek.ənd/" } },
+                { "vi": "hôm qua", "emoji": "⬅️", "zh": { "hanzi": "昨天", "hanviet": "tạc thiên", "pinyin": "zuó tiān" }, "en": { "word": "yesterday", "ipa": "/ˈjes.tə.deɪ/" } },
+                { "vi": "hôm nay", "emoji": "📆", "zh": { "hanzi": "今天", "hanviet": "kim thiên", "pinyin": "jīn tiān" }, "en": { "word": "today", "ipa": "/təˈdeɪ/" } },
+                { "vi": "ngày mai", "emoji": "➡️", "zh": { "hanzi": "明天", "hanviet": "minh thiên", "pinyin": "míng tiān" }, "en": { "word": "tomorrow", "ipa": "/təˈmɒr.əʊ/" } },
+                { "vi": "sinh nhật", "emoji": "🎂", "zh": { "hanzi": "生日", "hanviet": "sinh nhật", "pinyin": "shēng rì" }, "en": { "word": "birthday", "ipa": "/ˈbɜːθ.deɪ/" } }
+            ],
+
+
+            "Trái cây thường gặp": [
+                { "vi": "quả táo", "emoji": "🍎", "zh": { "hanzi": "苹果", "hanviet": "bình quả", "pinyin": "píngguǒ" }, "en": { "word": "apple", "ipa": "/ˈæp.əl/" } },
+                { "vi": "quả chuối", "emoji": "🍌", "zh": { "hanzi": "香蕉", "hanviet": "hương tiêu", "pinyin": "xiāngjiāo" }, "en": { "word": "banana", "ipa": "/bəˈnɑː.nə/" } },
+                { "vi": "quả cam", "emoji": "🍊", "zh": { "hanzi": "橙子", "hanviet": "trành tử", "pinyin": "chéngzi" }, "en": { "word": "orange", "ipa": "/ˈɒr.ɪndʒ/" } },
+                { "vi": "quả xoài", "emoji": "🥭", "zh": { "hanzi": "芒果", "hanviet": "mang quả", "pinyin": "mángguǒ" }, "en": { "word": "mango", "ipa": "/ˈmæŋ.ɡəʊ/" } },
+                { "vi": "quả dứa", "emoji": "🍍", "zh": { "hanzi": "菠萝", "hanviet": "ba la", "pinyin": "bōluó" }, "en": { "word": "pineapple", "ipa": "/ˈpaɪnˌæp.l/" } },
+                { "vi": "quả nho", "emoji": "🍇", "zh": { "hanzi": "葡萄", "hanviet": "bồ đào", "pinyin": "pútao" }, "en": { "word": "grape", "ipa": "/ɡreɪp/" } },
+                { "vi": "quả lê", "emoji": "🍐", "zh": { "hanzi": "梨", "hanviet": "lê", "pinyin": "lí" }, "en": { "word": "pear", "ipa": "/peə/" } },
+                { "vi": "quả dưa hấu", "emoji": "🍉", "zh": { "hanzi": "西瓜", "hanviet": "tây qua", "pinyin": "xīguā" }, "en": { "word": "watermelon", "ipa": "/ˈwɔː.təˌmel.ən/" } },
+                { "vi": "quả chanh", "emoji": "🍋", "zh": { "hanzi": "柠檬", "hanviet": "ninh mông", "pinyin": "níngméng" }, "en": { "word": "lemon", "ipa": "/ˈlem.ən/" } },
+                { "vi": "quả mít", "emoji": "🍈", "zh": { "hanzi": "菠萝蜜", "hanviet": "ba la mật", "pinyin": "bōluómì" }, "en": { "word": "jackfruit", "ipa": "/ˈdʒæk.fruːt/" } }
+            ],
+            "Rau củ thường gặp": [
+                { "vi": "cà rốt", "emoji": "🥕", "zh": { "hanzi": "胡萝卜", "hanviet": "hồ la bặc", "pinyin": "húluóbo" }, "en": { "word": "carrot", "ipa": "/ˈkær.ət/" } },
+                { "vi": "khoai tây", "emoji": "🥔", "zh": { "hanzi": "土豆", "hanviet": "thổ đậu", "pinyin": "tǔdòu" }, "en": { "word": "potato", "ipa": "/pəˈteɪ.təʊ/" } },
+                { "vi": "khoai lang", "emoji": "🍠", "zh": { "hanzi": "红薯", "hanviet": "hồng thử", "pinyin": "hóngshǔ" }, "en": { "word": "sweet potato", "ipa": "/swiːt pəˈteɪ.təʊ/" } },
+                { "vi": "hành tây", "emoji": "🧅", "zh": { "hanzi": "洋葱", "hanviet": "dương thông", "pinyin": "yángcōng" }, "en": { "word": "onion", "ipa": "/ˈʌn.jən/" } },
+                { "vi": "bắp cải", "emoji": "🥬", "zh": { "hanzi": "卷心菜", "hanviet": "quyển tâm thái", "pinyin": "juǎnxīncài" }, "en": { "word": "cabbage", "ipa": "/ˈkæb.ɪdʒ/" } },
+                { "vi": "rau cải", "emoji": "🥗", "zh": { "hanzi": "青菜", "hanviet": "thanh thái", "pinyin": "qīngcài" }, "en": { "word": "greens", "ipa": "/ɡriːnz/" } },
+                { "vi": "rau muống", "emoji": "🌿", "zh": { "hanzi": "空心菜", "hanviet": "không tâm thái", "pinyin": "kōngxīncài" }, "en": { "word": "water spinach", "ipa": "/ˈwɔː.tə ˌspɪ.nɪtʃ/" } },
+                { "vi": "cà chua", "emoji": "🍅", "zh": { "hanzi": "西红柿", "hanviet": "tây hồng thị", "pinyin": "xīhóngshì" }, "en": { "word": "tomato", "ipa": "/təˈmɑː.təʊ/" } },
+                { "vi": "dưa leo", "emoji": "🥒", "zh": { "hanzi": "黄瓜", "hanviet": "hoàng qua", "pinyin": "huángguā" }, "en": { "word": "cucumber", "ipa": "/ˈkjuː.kʌm.bər/" } },
+                { "vi": "bí đỏ", "emoji": "🎃", "zh": { "hanzi": "南瓜", "hanviet": "nam qua", "pinyin": "nánguā" }, "en": { "word": "pumpkin", "ipa": "/ˈpʌmp.kɪn/" } }
+            ],
+            "Đồ dùng nhà bếp & làm sạch thường gặp": [
+                { "vi": "nồi", "emoji": "🍲", "zh": { "hanzi": "锅", "hanviet": "oa", "pinyin": "guō" }, "en": { "word": "pot", "ipa": "/pɒt/" } },
+                { "vi": "chảo", "emoji": "🍳", "zh": { "hanzi": "平底锅", "hanviet": "bình để oa", "pinyin": "píng dǐ guō" }, "en": { "word": "pan", "ipa": "/pæn/" } },
+                { "vi": "muỗng", "emoji": "🥄", "zh": { "hanzi": "勺子", "hanviet": "thiêu tử", "pinyin": "sháo zi" }, "en": { "word": "spoon", "ipa": "/spuːn/" } },
+                { "vi": "đũa", "emoji": "🥢", "zh": { "hanzi": "筷子", "hanviet": "khoái tử", "pinyin": "kuài zi" }, "en": { "word": "chopsticks", "ipa": "/ˈtʃɒp.stɪks/" } },
+                { "vi": "dao", "emoji": "🔪", "zh": { "hanzi": "刀", "hanviet": "đao", "pinyin": "dāo" }, "en": { "word": "knife", "ipa": "/naɪf/" } },
+                { "vi": "bát", "emoji": "🍚", "zh": { "hanzi": "碗", "hanviet": "uyển", "pinyin": "wǎn" }, "en": { "word": "bowl", "ipa": "/bəʊl/" } },
+                { "vi": "dĩa", "emoji": "🍽️", "zh": { "hanzi": "盘子", "hanviet": "bàn tử", "pinyin": "pán zi" }, "en": { "word": "plate", "ipa": "/pleɪt/" } },
+                { "vi": "ấm đun nước", "emoji": "☕", "zh": { "hanzi": "水壶", "hanviet": "thuỷ hồ", "pinyin": "shuǐ hú" }, "en": { "word": "kettle", "ipa": "/ˈket.əl/" } },
+                { "vi": "bếp ga", "emoji": "🔥", "zh": { "hanzi": "煤气灶", "hanviet": "môi khí táo", "pinyin": "méi qì zào" }, "en": { "word": "gas stove", "ipa": "/ɡæs stəʊv/" } },
+                { "vi": "tủ đựng bát", "emoji": "🗄️", "zh": { "hanzi": "碗柜", "hanviet": "uyển quỹ", "pinyin": "wǎn guì" }, "en": { "word": "dish cabinet", "ipa": "/dɪʃ ˈkæb.ɪ.nət/" } },
+
+                { "vi": "chổi", "emoji": "🧹", "zh": { "hanzi": "扫帚", "hanviet": "tảo trửu", "pinyin": "sào zhǒu" }, "en": { "word": "broom", "ipa": "/bruːm/" } },
+                { "vi": "máy hút bụi", "emoji": "🧹", "zh": { "hanzi": "吸尘器", "hanviet": "hấp trần khí", "pinyin": "xī chén qì" }, "en": { "word": "vacuum cleaner", "ipa": "/ˈvæk.juːm ˌkliː.nər/" } },
+                { "vi": "mo hót rác", "emoji": "🧹", "zh": { "hanzi": "簸箕", "hanviet": "bá ky", "pinyin": "bò ji" }, "en": { "word": "dustpan", "ipa": "/ˈdʌst.pæn/" } },
+                { "vi": "thùng rác", "emoji": "🗑️", "zh": { "hanzi": "垃圾桶", "hanviet": "lạp sắc dũng", "pinyin": "lā jī tǒng" }, "en": { "word": "trash bin", "ipa": "/træʃ bɪn/" } }
+            ]
+
+            ,
+            "Nguyên tố & kim loại phổ biến": [
+                { "vi": "lửa", "emoji": "🔥", "zh": { "hanzi": "火", "hanviet": "hỏa", "pinyin": "huǒ" }, "en": { "word": "fire", "ipa": "/ˈfaɪər/" } },
+                { "vi": "nước", "emoji": "💧", "zh": { "hanzi": "水", "hanviet": "thuỷ", "pinyin": "shuǐ" }, "en": { "word": "water", "ipa": "/ˈwɔː.tər/" } },
+                { "vi": "đất", "emoji": "🌍", "zh": { "hanzi": "土", "hanviet": "thổ", "pinyin": "tǔ" }, "en": { "word": "earth", "ipa": "/ɜːθ/" } },
+                { "vi": "kim loại", "emoji": "🔩", "zh": { "hanzi": "金属", "hanviet": "kim chúc", "pinyin": "jīn shǔ" }, "en": { "word": "metal", "ipa": "/ˈmet.əl/" } },
+                { "vi": "sắt", "emoji": "🛠️", "zh": { "hanzi": "铁", "hanviet": "thiết", "pinyin": "tiě" }, "en": { "word": "iron", "ipa": "/ˈaɪən/" } },
+                { "vi": "vàng", "emoji": "🥇", "zh": { "hanzi": "金", "hanviet": "kim", "pinyin": "jīn" }, "en": { "word": "gold", "ipa": "/ɡəʊld/" } },
+                { "vi": "đồng", "emoji": "🪙", "zh": { "hanzi": "铜", "hanviet": "đồng", "pinyin": "tóng" }, "en": { "word": "copper", "ipa": "/ˈkɒp.ər/" } },
+                { "vi": "nhôm", "emoji": "⚙️", "zh": { "hanzi": "铝", "hanviet": "lữ", "pinyin": "lǚ" }, "en": { "word": "aluminum", "ipa": "/əˈluː.mɪ.nəm/" } },
+                { "vi": "kẽm", "emoji": "🔧", "zh": { "hanzi": "锌", "hanviet": "tân", "pinyin": "xīn" }, "en": { "word": "zinc", "ipa": "/zɪŋk/" } }
+            ]
+            ,
+            "Gia vị & nguyên liệu nấu ăn": [
+                { "vi": "muối", "emoji": "🧂", "zh": { "hanzi": "盐", "hanviet": "diêm", "pinyin": "yán" }, "en": { "word": "salt", "ipa": "/sɒlt/" } },
+                { "vi": "đường", "emoji": "🍬", "zh": { "hanzi": "糖", "hanviet": "đường", "pinyin": "táng" }, "en": { "word": "sugar", "ipa": "/ˈʃʊɡ.ər/" } },
+                { "vi": "tiêu", "emoji": "🌶️", "zh": { "hanzi": "胡椒", "hanviet": "hồ tiêu", "pinyin": "hújiāo" }, "en": { "word": "pepper", "ipa": "/ˈpep.ər/" } },
+                { "vi": "nước mắm", "emoji": "🐟", "zh": { "hanzi": "鱼露", "hanviet": "ngư lộ", "pinyin": "yú lù" }, "en": { "word": "fish sauce", "ipa": "/fɪʃ sɔːs/" } },
+                { "vi": "dầu ăn", "emoji": "🛢️", "zh": { "hanzi": "食用油", "hanviet": "thực dụng du", "pinyin": "shí yòng yóu" }, "en": { "word": "cooking oil", "ipa": "/ˈkʊ.kɪŋ ɔɪl/" } },
+                { "vi": "giấm", "emoji": "🍶", "zh": { "hanzi": "醋", "hanviet": "thố", "pinyin": "cù" }, "en": { "word": "vinegar", "ipa": "/ˈvɪn.ɪ.ɡər/" } },
+                { "vi": "hành", "emoji": "🧅", "zh": { "hanzi": "葱", "hanviet": "thông", "pinyin": "cōng" }, "en": { "word": "scallion", "ipa": "/ˈskæl.i.ən/" } },
+                { "vi": "tỏi", "emoji": "🧄", "zh": { "hanzi": "蒜", "hanviet": "toán", "pinyin": "suàn" }, "en": { "word": "garlic", "ipa": "/ˈɡɑː.lɪk/" } },
+                { "vi": "gừng", "emoji": "🫚", "zh": { "hanzi": "姜", "hanviet": "khương", "pinyin": "jiāng" }, "en": { "word": "ginger", "ipa": "/ˈdʒɪn.dʒər/" } },
+                { "vi": "bột ngọt", "emoji": "🧂", "zh": { "hanzi": "味精", "hanviet": "vị tinh", "pinyin": "wèi jīng" }, "en": { "word": "MSG", "ipa": "/ˌem.esˈdʒiː/" } }
+            ]
+            ,
+            "Vị giác cơ bản": [
+                { "vi": "chua", "emoji": "🍋", "zh": { "hanzi": "酸", "hanviet": "toan", "pinyin": "suān" }, "en": { "word": "sour", "ipa": "/saʊər/" } },
+                { "vi": "cay", "emoji": "🌶️", "zh": { "hanzi": "辣", "hanviet": "lạt", "pinyin": "là" }, "en": { "word": "spicy", "ipa": "/ˈspaɪ.si/" } },
+                { "vi": "mặn", "emoji": "🧂", "zh": { "hanzi": "咸", "hanviet": "hàm", "pinyin": "xián" }, "en": { "word": "salty", "ipa": "/ˈsɒl.ti/" } },
+                { "vi": "ngọt", "emoji": "🍭", "zh": { "hanzi": "甜", "hanviet": "điềm", "pinyin": "tián" }, "en": { "word": "sweet", "ipa": "/swiːt/" } },
+                { "vi": "đắng", "emoji": "☕️", "zh": { "hanzi": "苦", "hanviet": "khổ", "pinyin": "kǔ" }, "en": { "word": "bitter", "ipa": "/ˈbɪt.ər/" } },
+                { "vi": "chát", "emoji": "🍵", "zh": { "hanzi": "涩", "hanviet": "sáp", "pinyin": "sè" }, "en": { "word": "astringent", "ipa": "/əˈstrɪn.dʒənt/" } }
+            ]
+            ,
+            "Từ mô tả kích thước & khoảng cách": [
+                { "vi": "to", "emoji": "🔵", "zh": { "hanzi": "大", "hanviet": "đại", "pinyin": "dà" }, "en": { "word": "big", "ipa": "/bɪɡ/" } },
+                { "vi": "nhỏ", "emoji": "⚪️", "zh": { "hanzi": "小", "hanviet": "tiểu", "pinyin": "xiǎo" }, "en": { "word": "small", "ipa": "/smɔːl/" } },
+                { "vi": "cao", "emoji": "⬆️", "zh": { "hanzi": "高", "hanviet": "cao", "pinyin": "gāo" }, "en": { "word": "tall", "ipa": "/tɔːl/" } },
+                { "vi": "thấp", "emoji": "⬇️", "zh": { "hanzi": "矮", "hanviet": "ải", "pinyin": "ǎi" }, "en": { "word": "short", "ipa": "/ʃɔːt/" } },
+                { "vi": "dài", "emoji": "↔️", "zh": { "hanzi": "长", "hanviet": "trường", "pinyin": "cháng" }, "en": { "word": "long", "ipa": "/lɒŋ/" } },
+                { "vi": "ngắn", "emoji": "↔️", "zh": { "hanzi": "短", "hanviet": "đoản", "pinyin": "duǎn" }, "en": { "word": "short", "ipa": "/ʃɔːt/" } },
+                { "vi": "xa", "emoji": "📍➡️", "zh": { "hanzi": "远", "hanviet": "viễn", "pinyin": "yuǎn" }, "en": { "word": "far", "ipa": "/fɑːr/" } },
+                { "vi": "gần", "emoji": "📍⬅️", "zh": { "hanzi": "近", "hanviet": "cận", "pinyin": "jìn" }, "en": { "word": "near", "ipa": "/nɪər/" } },
+                { "vi": "nặng", "emoji": "🏋️", "zh": { "hanzi": "重", "hanviet": "trọng", "pinyin": "zhòng" }, "en": { "word": "heavy", "ipa": "/ˈhev.i/" } },
+                { "vi": "nhẹ", "emoji": "🎈", "zh": { "hanzi": "轻", "hanviet": "khinh", "pinyin": "qīng" }, "en": { "word": "light", "ipa": "/laɪt/" } },
+                { "vi": "dày", "emoji": "🧱", "zh": { "hanzi": "厚", "hanviet": "hậu", "pinyin": "hòu" }, "en": { "word": "thick", "ipa": "/θɪk/" } },
+                { "vi": "mỏng", "emoji": "📄", "zh": { "hanzi": "薄", "hanviet": "bạc", "pinyin": "báo" }, "en": { "word": "thin", "ipa": "/θɪn/" } },
+                { "vi": "rộng", "emoji": "↔️", "zh": { "hanzi": "宽", "hanviet": "khoan", "pinyin": "kuān" }, "en": { "word": "wide", "ipa": "/waɪd/" } },
+                { "vi": "hẹp", "emoji": "↔️", "zh": { "hanzi": "窄", "hanviet": "trách", "pinyin": "zhǎi" }, "en": { "word": "narrow", "ipa": "/ˈnær.əʊ/" } }
+            ]
+
+            ,
+            "Từ chỉ vị trí": [
+                { "vi": "trên", "emoji": "⬆️", "zh": { "hanzi": "上面", "hanviet": "thượng diện", "pinyin": "shàngmiàn" }, "en": { "word": "above", "ipa": "/əˈbʌv/" } },
+                { "vi": "dưới", "emoji": "⬇️", "zh": { "hanzi": "下面", "hanviet": "hạ diện", "pinyin": "xiàmiàn" }, "en": { "word": "below", "ipa": "/bɪˈləʊ/" } },
+                { "vi": "trước", "emoji": "↔️➡️", "zh": { "hanzi": "前面", "hanviet": "tiền diện", "pinyin": "qiánmiàn" }, "en": { "word": "in front of", "ipa": "/ɪn frʌnt ɒv/" } },
+                { "vi": "sau", "emoji": "↔️⬅️", "zh": { "hanzi": "后面", "hanviet": "hậu diện", "pinyin": "hòumiàn" }, "en": { "word": "behind", "ipa": "/bɪˈhaɪnd/" } },
+                { "vi": "trong", "emoji": "📦", "zh": { "hanzi": "里面", "hanviet": "lý diện", "pinyin": "lǐmiàn" }, "en": { "word": "inside", "ipa": "/ˌɪnˈsaɪd/" } },
+                { "vi": "ngoài", "emoji": "🚪", "zh": { "hanzi": "外面", "hanviet": "ngoại diện", "pinyin": "wàimiàn" }, "en": { "word": "outside", "ipa": "/ˌaʊtˈsaɪd/" } },
+                { "vi": "bên trái", "emoji": "⬅️", "zh": { "hanzi": "左边", "hanviet": "tả biên", "pinyin": "zuǒbiān" }, "en": { "word": "left", "ipa": "/left/" } },
+                { "vi": "bên phải", "emoji": "➡️", "zh": { "hanzi": "右边", "hanviet": "hữu biên", "pinyin": "yòubiān" }, "en": { "word": "right", "ipa": "/raɪt/" } },
+                { "vi": "gần", "emoji": "📍", "zh": { "hanzi": "附近", "hanviet": "phụ cận", "pinyin": "fùjìn" }, "en": { "word": "near", "ipa": "/nɪər/" } },
+                { "vi": "xa", "emoji": "📍↘️", "zh": { "hanzi": "远处", "hanviet": "viễn xứ", "pinyin": "yuǎnchù" }, "en": { "word": "far away", "ipa": "/ˌfɑːr əˈweɪ/" } },
+                { "vi": "ở giữa", "emoji": "⚪️", "zh": { "hanzi": "中间", "hanviet": "trung gian", "pinyin": "zhōngjiān" }, "en": { "word": "in the middle", "ipa": "/ɪn ðə ˈmɪd.əl/" } },
+                { "vi": "xung quanh", "emoji": "🔄", "zh": { "hanzi": "周围", "hanviet": "chu vi", "pinyin": "zhōuwéi" }, "en": { "word": "around", "ipa": "/əˈraʊnd/" } }
+            ]
+            ,
+            "Từ chỉ phương hướng": [
+                { "vi": "đông", "emoji": "➡️", "zh": { "hanzi": "东", "hanviet": "đông", "pinyin": "dōng" }, "en": { "word": "east", "ipa": "/iːst/" } },
+                { "vi": "tây", "emoji": "⬅️", "zh": { "hanzi": "西", "hanviet": "tây", "pinyin": "xī" }, "en": { "word": "west", "ipa": "/west/" } },
+                { "vi": "nam", "emoji": "⬇️", "zh": { "hanzi": "南", "hanviet": "nam", "pinyin": "nán" }, "en": { "word": "south", "ipa": "/saʊθ/" } },
+                { "vi": "bắc", "emoji": "⬆️", "zh": { "hanzi": "北", "hanviet": "bắc", "pinyin": "běi" }, "en": { "word": "north", "ipa": "/nɔːθ/" } },
+                { "vi": "đông bắc", "emoji": "↗️", "zh": { "hanzi": "东北", "hanviet": "đông bắc", "pinyin": "dōngběi" }, "en": { "word": "northeast", "ipa": "/ˌnɔːθˈiːst/" } },
+                { "vi": "tây bắc", "emoji": "↖️", "zh": { "hanzi": "西北", "hanviet": "tây bắc", "pinyin": "xīběi" }, "en": { "word": "northwest", "ipa": "/ˌnɔːθˈwest/" } },
+                { "vi": "tây nam", "emoji": "↙️", "zh": { "hanzi": "西南", "hanviet": "tây nam", "pinyin": "xīnán" }, "en": { "word": "southwest", "ipa": "/ˌsaʊθˈwest/" } },
+                { "vi": "đông nam", "emoji": "↘️", "zh": { "hanzi": "东南", "hanviet": "đông nam", "pinyin": "dōngnán" }, "en": { "word": "southeast", "ipa": "/ˌsaʊθˈiːst/" } }
+            ]
+
+            ,
+            "Mùa và thời tiết": [
+                { "vi": "mùa xuân", "emoji": "🌸", "zh": { "hanzi": "春天", "hanviet": "xuân thiên", "pinyin": "chūntiān" }, "en": { "word": "spring", "ipa": "/sprɪŋ/" } },
+                { "vi": "mùa hè", "emoji": "☀️", "zh": { "hanzi": "夏天", "hanviet": "hạ thiên", "pinyin": "xiàtiān" }, "en": { "word": "summer", "ipa": "/ˈsʌm.ər/" } },
+                { "vi": "mùa thu", "emoji": "🍂", "zh": { "hanzi": "秋天", "hanviet": "thu thiên", "pinyin": "qiūtiān" }, "en": { "word": "autumn", "ipa": "/ˈɔː.təm/" } },
+                { "vi": "mùa đông", "emoji": "❄️", "zh": { "hanzi": "冬天", "hanviet": "đông thiên", "pinyin": "dōngtiān" }, "en": { "word": "winter", "ipa": "/ˈwɪn.tər/" } },
+                { "vi": "trời nắng", "emoji": "☀️", "zh": { "hanzi": "晴天", "hanviet": "tình thiên", "pinyin": "qíngtiān" }, "en": { "word": "sunny", "ipa": "/ˈsʌn.i/" } },
+                { "vi": "trời mưa", "emoji": "🌧️", "zh": { "hanzi": "下雨", "hanviet": "hạ vũ", "pinyin": "xià yǔ" }, "en": { "word": "rainy", "ipa": "/ˈreɪ.ni/" } },
+                { "vi": "trời gió", "emoji": "🌬️", "zh": { "hanzi": "刮风", "hanviet": "quát phong", "pinyin": "guāfēng" }, "en": { "word": "windy", "ipa": "/ˈwɪn.di/" } },
+                { "vi": "trời lạnh", "emoji": "🥶", "zh": { "hanzi": "冷天", "hanviet": "lãnh thiên", "pinyin": "lěngtiān" }, "en": { "word": "cold", "ipa": "/kəʊld/" } },
+                { "vi": "trời nóng", "emoji": "🔥", "zh": { "hanzi": "热天", "hanviet": "nhiệt thiên", "pinyin": "rètiān" }, "en": { "word": "hot", "ipa": "/hɒt/" } },
+                { "vi": "nhiệt độ", "emoji": "🌡️", "zh": { "hanzi": "温度", "hanviet": "ôn độ", "pinyin": "wēndù" }, "en": { "word": "temperature", "ipa": "/ˈtem.pər.ə.tʃər/" } }
+            ]
+
+            ,
+            "Thời gian trong ngày": [
+                { "vi": "buổi sáng", "emoji": "🌅", "zh": { "hanzi": "早上", "hanviet": "tảo thượng", "pinyin": "zǎoshang" }, "en": { "word": "morning", "ipa": "/ˈmɔː.nɪŋ/" } },
+                { "vi": "buổi trưa", "emoji": "🌞", "zh": { "hanzi": "中午", "hanviet": "trung ngọ", "pinyin": "zhōngwǔ" }, "en": { "word": "noon", "ipa": "/nuːn/" } },
+                { "vi": "buổi chiều", "emoji": "🌇", "zh": { "hanzi": "下午", "hanviet": "hạ ngọ", "pinyin": "xiàwǔ" }, "en": { "word": "afternoon", "ipa": "/ˌɑːf.təˈnuːn/" } },
+                { "vi": "buổi tối", "emoji": "🌆", "zh": { "hanzi": "晚上", "hanviet": "vãn thượng", "pinyin": "wǎnshang" }, "en": { "word": "evening", "ipa": "/ˈiːv.nɪŋ/" } },
+                { "vi": "ban đêm", "emoji": "🌙", "zh": { "hanzi": "夜里", "hanviet": "dạ lý", "pinyin": "yèlǐ" }, "en": { "word": "night", "ipa": "/naɪt/" } },
+                { "vi": "rạng sáng", "emoji": "🌄", "zh": { "hanzi": "黎明", "hanviet": "lê minh", "pinyin": "límíng" }, "en": { "word": "dawn", "ipa": "/dɔːn/" } },
+                { "vi": "hoàng hôn", "emoji": "🌇", "zh": { "hanzi": "黄昏", "hanviet": "hoàng hôn", "pinyin": "huánghūn" }, "en": { "word": "dusk", "ipa": "/dʌsk/" } },
+                { "vi": "nửa đêm", "emoji": "🕛", "zh": { "hanzi": "半夜", "hanviet": "bán dạ", "pinyin": "bànyè" }, "en": { "word": "midnight", "ipa": "/ˈmɪd.naɪt/" } },
+                { "vi": "sáng sớm", "emoji": "🌅", "zh": { "hanzi": "清晨", "hanviet": "thanh thần", "pinyin": "qīngchén" }, "en": { "word": "early morning", "ipa": "/ˈɜː.li ˈmɔː.nɪŋ/" } }
+            ]
+            ,
+            "Liên từ, trợ từ, phó từ thường dùng": [
+                { "vi": "và", "emoji": "➕", "zh": { "hanzi": "和", "hanviet": "hòa", "pinyin": "hé" }, "en": { "word": "and", "ipa": "/ænd/" } },
+                { "vi": "hoặc", "emoji": "🔀", "zh": { "hanzi": "或者", "hanviet": "hoặc giả", "pinyin": "huòzhě" }, "en": { "word": "or", "ipa": "/ɔːr/" } },
+                { "vi": "nhưng", "emoji": "❌", "zh": { "hanzi": "但是", "hanviet": "đán thị", "pinyin": "dànshì" }, "en": { "word": "but", "ipa": "/bʌt/" } },
+                { "vi": "bởi vì", "emoji": "⚠️", "zh": { "hanzi": "因为", "hanviet": "nhân vi", "pinyin": "yīnwèi" }, "en": { "word": "because", "ipa": "/bɪˈkɒz/" } },
+                { "vi": "nếu", "emoji": "❓", "zh": { "hanzi": "如果", "hanviet": "nhược quả", "pinyin": "rúguǒ" }, "en": { "word": "if", "ipa": "/ɪf/" } },
+                { "vi": "khi", "emoji": "⏰", "zh": { "hanzi": "当", "hanviet": "đương", "pinyin": "dāng" }, "en": { "word": "when", "ipa": "/wen/" } },
+                { "vi": "rất", "emoji": "🔥", "zh": { "hanzi": "很", "hanviet": "ngận", "pinyin": "hěn" }, "en": { "word": "very", "ipa": "/ˈver.i/" } },
+                { "vi": "cũng", "emoji": "👌", "zh": { "hanzi": "也", "hanviet": "dã", "pinyin": "yě" }, "en": { "word": "also", "ipa": "/ˈɔːl.səʊ/" } },
+                { "vi": "đã", "emoji": "✔️", "zh": { "hanzi": "已经", "hanviet": "dĩ kinh", "pinyin": "yǐjīng" }, "en": { "word": "already", "ipa": "/ɔːlˈred.i/" } },
+                { "vi": "chưa", "emoji": "❔", "zh": { "hanzi": "还没", "hanviet": "hoàn mị", "pinyin": "hái méi" }, "en": { "word": "not yet", "ipa": "/nɒt jet/" } },
+                { "vi": "vẫn", "emoji": "🔄", "zh": { "hanzi": "还是", "hanviet": "hoàn thị", "pinyin": "háishì" }, "en": { "word": "still", "ipa": "/stɪl/" } },
+                { "vi": "đang", "emoji": "⏳", "zh": { "hanzi": "正在", "hanviet": "chánh tại", "pinyin": "zhèngzài" }, "en": { "word": "in progress", "ipa": "/ɪn ˈprəʊ.ɡres/" } },
+                { "vi": "sẽ", "emoji": "➡️", "zh": { "hanzi": "会", "hanviet": "hội", "pinyin": "huì" }, "en": { "word": "will", "ipa": "/wɪl/" } },
+                { "vi": "có thể", "emoji": "✅", "zh": { "hanzi": "可以", "hanviet": "khả dĩ", "pinyin": "kěyǐ" }, "en": { "word": "can / may", "ipa": "/kæn/, /meɪ/" } },
+                { "vi": "phải", "emoji": "⚡", "zh": { "hanzi": "必须", "hanviet": "tất tu", "pinyin": "bìxū" }, "en": { "word": "must", "ipa": "/mʌst/" } }
+            ]
+
+            ,
+            "Từ nghi vấn thường dùng": [
+                { "vi": "ai", "emoji": "❓", "zh": { "hanzi": "谁", "hanviet": "thùy", "pinyin": "shéi" }, "en": { "word": "who", "ipa": "/huː/" } },
+                { "vi": "gì", "emoji": "❔", "zh": { "hanzi": "什么", "hanviet": "thập ma", "pinyin": "shénme" }, "en": { "word": "what", "ipa": "/wɒt/" } },
+                { "vi": "khi nào", "emoji": "⏰", "zh": { "hanzi": "什么时候", "hanviet": "thậm ma thì hậu", "pinyin": "shénme shíhou" }, "en": { "word": "when", "ipa": "/wen/" } },
+                { "vi": "ở đâu", "emoji": "📍", "zh": { "hanzi": "哪里", "hanviet": "hà lý", "pinyin": "nǎlǐ" }, "en": { "word": "where", "ipa": "/weər/" } },
+                { "vi": "tại sao", "emoji": "❓❓", "zh": { "hanzi": "为什么", "hanviet": "vị thập ma", "pinyin": "wèishéme" }, "en": { "word": "why", "ipa": "/waɪ/" } },
+                { "vi": "như thế nào", "emoji": "🤔", "zh": { "hanzi": "怎么样", "hanviet": "chẩm dạng", "pinyin": "zěnmeyàng" }, "en": { "word": "how", "ipa": "/haʊ/" } },
+                { "vi": "bao nhiêu", "emoji": "🔢", "zh": { "hanzi": "多少", "hanviet": "đa thiểu", "pinyin": "duōshǎo" }, "en": { "word": "how many / how much", "ipa": "/ˈhaʊ ˈmeni/, /ˈhaʊ mʌtʃ/" } }
+            ]
+            ,
+            "Từ cảm thán & đầu câu": [
+                { "vi": "ồ", "emoji": "😮", "zh": { "hanzi": "哦", "hanviet": "a", "pinyin": "ó" }, "en": { "word": "oh", "ipa": "/əʊ/" } },
+                { "vi": "à", "emoji": "😯", "zh": { "hanzi": "啊", "hanviet": "a", "pinyin": "a" }, "en": { "word": "ah", "ipa": "/ɑː/" } },
+                { "vi": "ui", "emoji": "😣", "zh": { "hanzi": "哎哟", "hanviet": "ai yêu", "pinyin": "āiyō" }, "en": { "word": "ouch / wow", "ipa": "/aʊtʃ/, /waʊ/" } },
+                { "vi": "ủa", "emoji": "🤨", "zh": { "hanzi": "咦", "hanviet": "di", "pinyin": "yí" }, "en": { "word": "huh?", "ipa": "/hʌ/" } },
+                { "vi": "á", "emoji": "😲", "zh": { "hanzi": "哇", "hanviet": "oa", "pinyin": "wā" }, "en": { "word": "wow", "ipa": "/waʊ/" } },
+                { "vi": "chà", "emoji": "😧", "zh": { "hanzi": "哎呀", "hanviet": "ai nha", "pinyin": "āiyā" }, "en": { "word": "oh dear", "ipa": "/əʊ dɪə/" } }
+            ]
+            ,
+            "Trang phục & phụ kiện thường dùng": [
+                { "vi": "áo", "emoji": "👕", "zh": { "hanzi": "衣服", "hanviet": "y phục", "pinyin": "yīfu" }, "en": { "word": "clothes", "ipa": "/kləʊðz/" } },
+                { "vi": "áo sơ mi", "emoji": "👔", "zh": { "hanzi": "衬衫", "hanviet": "sấn sam", "pinyin": "chènshān" }, "en": { "word": "shirt", "ipa": "/ʃɜːt/" } },
+                { "vi": "áo khoác", "emoji": "🧥", "zh": { "hanzi": "外套", "hanviet": "ngoại sáo", "pinyin": "wàitào" }, "en": { "word": "jacket", "ipa": "/ˈdʒæk.ɪt/" } },
+                { "vi": "quần", "emoji": "👖", "zh": { "hanzi": "裤子", "hanviet": "khố tử", "pinyin": "kùzi" }, "en": { "word": "pants", "ipa": "/pænts/" } },
+                { "vi": "váy", "emoji": "👗", "zh": { "hanzi": "裙子", "hanviet": "quần tử", "pinyin": "qúnzi" }, "en": { "word": "skirt", "ipa": "/skɜːt/" } },
+                { "vi": "giày", "emoji": "👟", "zh": { "hanzi": "鞋子", "hanviet": "hài tử", "pinyin": "xiézi" }, "en": { "word": "shoes", "ipa": "/ʃuːz/" } },
+                { "vi": "dép", "emoji": "🩴", "zh": { "hanzi": "拖鞋", "hanviet": "tha hài", "pinyin": "tuōxié" }, "en": { "word": "slippers", "ipa": "/ˈslɪp.ərz/" } },
+                { "vi": "nón", "emoji": "🎩", "zh": { "hanzi": "帽子", "hanviet": "mạo tử", "pinyin": "màozi" }, "en": { "word": "hat", "ipa": "/hæt/" } },
+                { "vi": "ô", "emoji": "☂️", "zh": { "hanzi": "雨伞", "hanviet": "vũ tán", "pinyin": "yǔsǎn" }, "en": { "word": "umbrella", "ipa": "/ʌmˈbrel.ə/" } },
+                { "vi": "ba lô", "emoji": "🎒", "zh": { "hanzi": "背包", "hanviet": "bối bao", "pinyin": "bēibāo" }, "en": { "word": "backpack", "ipa": "/ˈbæk.pæk/" } }
+            ]
+
+            ,
+            "Mua bán, tặng biếu": [
+                { "vi": "mua", "emoji": "🛒", "zh": { "hanzi": "买", "hanviet": "mãi", "pinyin": "mǎi" }, "en": { "word": "buy", "ipa": "/baɪ/" } },
+                { "vi": "bán", "emoji": "💰", "zh": { "hanzi": "卖", "hanviet": "mại", "pinyin": "mài" }, "en": { "word": "sell", "ipa": "/sel/" } },
+                { "vi": "cho", "emoji": "🤲", "zh": { "hanzi": "给", "hanviet": "cấp", "pinyin": "gěi" }, "en": { "word": "give", "ipa": "/ɡɪv/" } },
+                { "vi": "tặng", "emoji": "🎁", "zh": { "hanzi": "赠送", "hanviet": "tặng tống", "pinyin": "zèngsòng" }, "en": { "word": "gift / present", "ipa": "/ɡɪft/" } },
+                { "vi": "biếu", "emoji": "🎀", "zh": { "hanzi": "献给", "hanviet": "hiến cấp", "pinyin": "xiàn gěi" }, "en": { "word": "offer (respectfully)", "ipa": "/ˈɒf.ər/" } },
+                { "vi": "trả", "emoji": "💵", "zh": { "hanzi": "付钱", "hanviet": "phó tiền", "pinyin": "fùqián" }, "en": { "word": "pay", "ipa": "/peɪ/" } },
+                { "vi": "giá", "emoji": "💲", "zh": { "hanzi": "价格", "hanviet": "giá cách", "pinyin": "jiàgé" }, "en": { "word": "price", "ipa": "/praɪs/" } },
+                { "vi": "vay", "emoji": "💳", "zh": { "hanzi": "借钱", "hanviet": "tá tiền", "pinyin": "jiè qián" }, "en": { "word": "borrow money", "ipa": "/ˈbɒr.əʊ ˈmʌn.i/" } },
+                { "vi": "mượn", "emoji": "🤝", "zh": { "hanzi": "借", "hanviet": "tá", "pinyin": "jiè" }, "en": { "word": "borrow", "ipa": "/ˈbɒr.əʊ/" } },
+                { "vi": "trả lại", "emoji": "↩️", "zh": { "hanzi": "还", "hanviet": "hoàn", "pinyin": "huán" }, "en": { "word": "return", "ipa": "/rɪˈtɜːn/" } }
+            ]
+
+            ,
+            "Cảnh vật thiên nhiên & địa hình": [
+                { "vi": "biển", "emoji": "🌊", "zh": { "hanzi": "海", "hanviet": "hải", "pinyin": "hǎi" }, "en": { "word": "sea", "ipa": "/siː/" } },
+                { "vi": "đại dương", "emoji": "🌊🌊", "zh": { "hanzi": "海洋", "hanviet": "hải dương", "pinyin": "hǎiyáng" }, "en": { "word": "ocean", "ipa": "/ˈəʊ.ʃən/" } },
+                { "vi": "sông", "emoji": "🏞️", "zh": { "hanzi": "河", "hanviet": "hà", "pinyin": "hé" }, "en": { "word": "river", "ipa": "/ˈrɪv.ər/" } },
+                { "vi": "suối", "emoji": "💧", "zh": { "hanzi": "小溪", "hanviet": "tiểu khê", "pinyin": "xiǎo xī" }, "en": { "word": "stream", "ipa": "/striːm/" } },
+                { "vi": "ao", "emoji": "🏞️", "zh": { "hanzi": "池塘", "hanviet": "trì đường", "pinyin": "chítáng" }, "en": { "word": "pond", "ipa": "/pɒnd/" } },
+                { "vi": "hồ", "emoji": "🏞️", "zh": { "hanzi": "湖", "hanviet": "hồ", "pinyin": "hú" }, "en": { "word": "lake", "ipa": "/leɪk/" } },
+                { "vi": "núi", "emoji": "⛰️", "zh": { "hanzi": "山", "hanviet": "sơn", "pinyin": "shān" }, "en": { "word": "mountain", "ipa": "/ˈmaʊn.tɪn/" } },
+                { "vi": "đồi", "emoji": "🌄", "zh": { "hanzi": "山丘", "hanviet": "sơn khâu", "pinyin": "shānqiū" }, "en": { "word": "hill", "ipa": "/hɪl/" } },
+                { "vi": "rừng", "emoji": "🌲", "zh": { "hanzi": "森林", "hanviet": "sâm lâm", "pinyin": "sēnlín" }, "en": { "word": "forest", "ipa": "/ˈfɒr.ɪst/" } },
+                { "vi": "đồng bằng", "emoji": "🏞️", "zh": { "hanzi": "平原", "hanviet": "bình nguyên", "pinyin": "píngyuán" }, "en": { "word": "plain", "ipa": "/pleɪn/" } },
+                { "vi": "sa mạc", "emoji": "🏜️", "zh": { "hanzi": "沙漠", "hanviet": "sa mạc", "pinyin": "shāmò" }, "en": { "word": "desert", "ipa": "/ˈdez.ət/" } },
+                { "vi": "hang động", "emoji": "🕳️", "zh": { "hanzi": "洞穴", "hanviet": "động huyệt", "pinyin": "dòngxué" }, "en": { "word": "cave", "ipa": "/keɪv/" } }
+            ]
+
+
+
+
+        }
+
+            ;
+
+
+    </script>
+
+    <!-- Vocabulary Match Game - VI ↔ EN ↔ ZH -->
+    <div class="game-container">
+        <h2>🎲 Vocabulary Match</h2>
+        <p>Match the Vietnamese word to its correct English and Chinese equivalents.</p>
+
+        <div id="game-board" class="grid"></div>
+        <button onclick="startMatchGame()">🔁 New Game</button>
+    </div>
+
+    <style>
+        .game-container {
+            max-width: 600px;
+            margin: 20px auto;
+            text-align: center;
+            font-family: sans-serif;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .card {
+            padding: 10px;
+            background: #f0f0f0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+            border: 2px solid transparent;
+        }
+
+        .card.matched {
+            background: #d4edda;
+            border-color: #28a745;
+        }
+
+        .card.incorrect {
+            background: #f8d7da;
+            border-color: #dc3545;
+        }
+
+        .top-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            padding: 10px;
+        }
+
+        .top-buttons button {
+            padding: 6px 10px;
+            font-size: 16px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+        }
+
+        .game-menu {
+            display: none;
+            background: #fefefe;
+            border: 1px solid #ccc;
+            padding: 10px;
+            position: absolute;
+            right: 10px;
+            top: 60px;
+            z-index: 100;
+            border-radius: 6px;
+        }
+
+        .game-menu.show {
+            display: block;
+        }
+
+        .game-menu button {
+            display: block;
+            width: 100%;
+            padding: 6px;
+            margin-bottom: 5px;
+            text-align: left;
+        }
+    </style>
+
+    <div class="top-buttons">
+        <button onclick="toggleGameMenu()">🎮</button>
+    </div>
+    <div id="gameMenu" class="game-menu">
+        <button onclick="startMatchGame()">🎲 Vocabulary Match</button>
+    </div>
+
+    <script>
+        // Use existing miniDictionary from app
+        let selected = [];
+        let matched = [];
+
+        function shuffle(array) {
+            return array.sort(() => Math.random() - 0.5);
+        }
+
+        function startMatchGame() {
+            const board = document.getElementById("game-board");
+            if (!board) return;
+            board.innerHTML = "";
+            selected = [];
+            matched = [];
+
+            const allItems = [];
+
+            for (const topic in miniDictionary) {
+                miniDictionary[topic].forEach(entry => {
+                    if (entry.vi && entry.en && entry.zh) {
+                        allItems.push(entry);
+                    }
+                });
+            }
+
+            // Chọn ngẫu nhiên 6 từ
+            const sample = shuffle(allItems).slice(0, 6);
+            const cards = [];
+
+            sample.forEach(item => {
+                cards.push({ label: item.vi, lang: "vi", key: item.vi });
+                cards.push({ label: item.en.word, lang: "en", key: item.vi });
+                cards.push({ label: item.zh.hanzi, lang: "zh", key: item.vi });
+            });
+
+            shuffle(cards).forEach(card => {
+                const div = document.createElement("div");
+                div.className = "card";
+                div.innerText = card.label;
+                div.dataset.key = card.key;
+                div.dataset.lang = card.lang;
+                div.onclick = () => handleCardClick(div);
+                board.appendChild(div);
+            });
+        }
+
+        function handleCardClick(card) {
+            if (card.classList.contains("matched")) return;
+            playTTS(card.innerText, detectLangCode(card.dataset.lang));
+            card.style.background = "#e0f7fa";
+            selected.push(card);
+
+            if (selected.length === 3) {
+                const [a, b, c] = selected;
+                const keysMatch = a.dataset.key === b.dataset.key && b.dataset.key === c.dataset.key;
+                const langs = new Set([a.dataset.lang, b.dataset.lang, c.dataset.lang]);
+                const allDifferentLangs = langs.size === 3;
+
+                if (keysMatch && allDifferentLangs) {
+                    selected.forEach(el => {
+                        el.classList.add("matched");
+                        el.style.background = "#d4edda";
+                    });
+                    matched.push(a.dataset.key);
+                    // ✅ Trợ lý chúc mừng
+                    const wordInfo = getWordFromMiniDict(a.dataset.key);
+                    if (wordInfo) {
+                        addMessage(`🎉 Giỏi quá! Hãy nhớ nhé:\n🇻🇳 ${wordInfo.vi}\n🇨🇳 ${wordInfo.zh.hanzi} (${wordInfo.zh.pinyin})\n🇬🇧 ${wordInfo.en.word}`);
+                    }
+                } else {
+                    selected.forEach(el => el.classList.add("incorrect"));
+                    setTimeout(() => {
+                        selected.forEach(el => {
+                            el.classList.remove("incorrect");
+                            el.style.background = "";
+                        });
+                    }, 700);
+                    // ❌ Trợ lý nhắc lại
+                    const wrongKey = a.dataset.key; // lấy 1 key bất kỳ trong bộ
+                    const wordInfo = getWordFromMiniDict(wrongKey);
+                    if (wordInfo) {
+                        addMessage(`❌ Không đúng rồi… Ghi nhớ lại nhé:\n🇻🇳 ${wordInfo.vi}\n🇨🇳 ${wordInfo.zh.hanzi} (${wordInfo.zh.pinyin})\n🇬🇧 ${wordInfo.en.word}`);
+                    }
+                }
+                selected = [];
+            }
+        }
+
+        function getWordFromMiniDict(key) {
+            for (const topic in miniDictionary) {
+                const found = miniDictionary[topic].find(entry => entry.vi === key);
+                if (found) return found;
+            }
+            return null;
+        }
+
+        function detectLangCode(lang) {
+            switch (lang) {
+                case "vi": return "vi-VN";
+                case "en": return "en-US";
+                case "zh": return "zh-CN";
+                default: return "vi-VN";
+            }
+        }
+        function toggleGameMenu() {
+            const menu = document.getElementById("gameMenu");
+            menu.classList.toggle("show");
+        }
+    </script>
+    <script> function playTTS(text, langCode = "vi-VN") { const utterance = new SpeechSynthesisUtterance(text); utterance.lang = langCode; speechSynthesis.speak(utterance); } </script>
+
+</body>
+
+</html>
